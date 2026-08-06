@@ -96,6 +96,7 @@ class User(db.Model):
     # رقم الجوال بصيغة موحّدة دوليًا (+9665XXXXXXXX) — فريد ومطلوب، ويُتحقق منه عبر OTP وقت التسجيل
     phone = db.Column(db.String(30), unique=True, nullable=True, index=True)
     phone_verified_at = db.Column(db.DateTime, nullable=True)
+    terms_accepted_at = db.Column(db.DateTime, nullable=True)
     password_hash = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(20), nullable=False, default=ROLE_VISITOR)
     specialty = db.Column(db.String(50))   # يُستخدم فقط لحسابات role=staff
@@ -154,12 +155,17 @@ class PhoneOtp(db.Model):
 class Horse(db.Model):
     __tablename__ = "horses"
 
+    GENDERS = ["ذكر", "أنثى"]
+
     id = db.Column(db.Integer, primary_key=True)
     stable_id = db.Column(db.Integer, db.ForeignKey("stables.id"), nullable=False, index=True)
     owner_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)  # NULL = يملكه الإسطبل نفسه
     name = db.Column(db.String(100), nullable=False)
     breed = db.Column(db.String(100))          # السلالة
     color = db.Column(db.String(50))           # اللون
+    gender = db.Column(db.String(10))          # ذكر | أنثى
+    sire_name = db.Column(db.String(100))       # اسم الأب
+    dam_name = db.Column(db.String(100))        # اسم الأم
     birth_year = db.Column(db.Integer)
     photo_path = db.Column(db.String(300))
     service_type = db.Column(db.String(30), default="boarding", index=True)  # boarding | training | rental
@@ -179,6 +185,12 @@ class Horse(db.Model):
         if not self.reviews:
             return None
         return round(sum(r.rating for r in self.reviews) / len(self.reviews), 1)
+
+    @property
+    def age(self):
+        if not self.birth_year:
+            return None
+        return max(0, datetime.now(timezone.utc).year - self.birth_year)
 
 
 class DailyLog(db.Model):

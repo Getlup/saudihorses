@@ -125,77 +125,78 @@ def test_post_without_csrf_token_rejected(client):
     assert r.status_code == 400
 
 
-def test_register_start_rejects_invalid_phone(client):
+def test_register_rejects_short_password(client):
     r = client.get("/s/test-stable/register")
     csrf = get_csrf(r.get_data(as_text=True))
     r = client.post("/s/test-stable/register", data={
-        "name": "شخص جديد", "phone": "123", "csrf_token": csrf
-    })
-    assert "رقم الجوال غير صحيح" in r.get_data(as_text=True)
-
-
-def test_register_verify_rejects_short_password(client, monkeypatch):
-    import app as app_module
-    captured = {}
-    monkeypatch.setattr(app_module, "send_otp_sms", lambda phone, code: captured.__setitem__("code", code))
-
-    r = client.get("/s/test-stable/register")
-    csrf = get_csrf(r.get_data(as_text=True))
-    client.post("/s/test-stable/register", data={
-        "name": "شخص جديد", "phone": "0555000111", "csrf_token": csrf
-    })
-
-    r = client.get("/s/test-stable/register/verify")
-    csrf2 = get_csrf(r.get_data(as_text=True))
-    r = client.post("/s/test-stable/register/verify", data={
-        "code": captured["code"], "username": "new_visitor", "password": "short", "csrf_token": csrf2
+        "name": "شخص جديد", "email": "new@test.com", "phone": "0555000111",
+        "password": "short", "terms_accepted": "on", "csrf_token": csrf
     })
     assert "8 أحرف" in r.get_data(as_text=True)
 
 
-def test_register_full_flow_creates_verified_account(client, monkeypatch):
-    import app as app_module
+def test_register_creates_account_and_logs_in(client):
     from models import User
-    captured = {}
-    monkeypatch.setattr(app_module, "send_otp_sms", lambda phone, code: captured.__setitem__("code", code))
-
     r = client.get("/s/test-stable/register")
     csrf = get_csrf(r.get_data(as_text=True))
-    client.post("/s/test-stable/register", data={
-        "name": "شخص جديد", "phone": "0555000222", "csrf_token": csrf
-    })
-
-    r = client.get("/s/test-stable/register/verify")
-    csrf2 = get_csrf(r.get_data(as_text=True))
-    r = client.post("/s/test-stable/register/verify", data={
-        "code": captured["code"], "username": "new_visitor2", "password": "longenough123", "csrf_token": csrf2
+    r = client.post("/s/test-stable/register", data={
+        "name": "شخص جديد", "email": "newvisitor@test.com", "phone": "0555000222",
+        "password": "longenough123", "terms_accepted": "on", "csrf_token": csrf
     }, follow_redirects=True)
     assert r.status_code == 200
 
     with client.application.app_context():
-        user = User.query.filter_by(username="new_visitor2").first()
+        user = User.query.filter_by(email="newvisitor@test.com").first()
         assert user is not None
-        assert user.phone_verified_at is not None
         assert user.phone == "+966555000222"
 
 
-def test_register_verify_rejects_wrong_otp(client, monkeypatch):
-    import app as app_module
-    captured = {}
-    monkeypatch.setattr(app_module, "send_otp_sms", lambda phone, code: captured.__setitem__("code", code))
+def test_register_blank_phone_does_not_collide(client):
+    """حقلا جوال فارغَين لمستخدمَين مختلفَين لا يجب أن يتعارضا مع قيد UNIQUE — ينطبق على الحسابات
+    اللي تُنشأ من لوحة الإدارة (owners/staff) لا على تسجيل الزوار، حيث الجوال أصبح إلزاميًا."""
+    from models import User
+    user = User(name="بدون جوال 1", email="blankphone-admin@test.com", phone=None,
+                stable_id=1, role=User.ROLE_HORSE_OWNER)
+    user.set_password("longenough123")
+    user2 = User(name="بدون جوال 2", email="blankphone-admin2@test.com", phone=None,
+                 stable_id=1, role=User.ROLE_HORSE_OWNER)
+    user2.set_password("longenough123")
+    with client.application.app_context():
+        db.session.add_all([user, user2])
+        db.session.commit()
+        assert User.query.filter(
+            User.email.in_(["blankphone-admin@test.com", "blankphone-admin2@test.com"])
+        ).count() == 2
 
+
+def test_register_rejects_missing_phone(client):
     r = client.get("/s/test-stable/register")
     csrf = get_csrf(r.get_data(as_text=True))
-    client.post("/s/test-stable/register", data={
-        "name": "شخص جديد", "phone": "0555000333", "csrf_token": csrf
+    r = client.post("/s/test-stable/register", data={
+        "name": "شخص جديد", "email": "nophone@test.com", "phone": "", "password": "longenough123",
+        "csrf_token": csrf
     })
+    assert "تعبئة جميع الحقول" in r.get_data(as_text=True)
 
-    r = client.get("/s/test-stable/register/verify")
-    csrf2 = get_csrf(r.get_data(as_text=True))
-    r = client.post("/s/test-stable/register/verify", data={
-        "code": "000000", "username": "new_visitor3", "password": "longenough123", "csrf_token": csrf2
+
+def test_register_rejects_without_terms_acceptance(client):
+    r = client.get("/s/test-stable/register")
+    csrf = get_csrf(r.get_data(as_text=True))
+    r = client.post("/s/test-stable/register", data={
+        "name": "شخص جديد", "email": "noterms@test.com", "phone": "0555000444",
+        "password": "longenough123", "csrf_token": csrf
     })
-    assert "غير صحيح" in r.get_data(as_text=True) or "غير صالح" in r.get_data(as_text=True)
+    assert "الموافقة على الشروط" in r.get_data(as_text=True)
+
+
+def test_register_rejects_invalid_phone_format(client):
+    r = client.get("/s/test-stable/register")
+    csrf = get_csrf(r.get_data(as_text=True))
+    r = client.post("/s/test-stable/register", data={
+        "name": "شخص جديد", "email": "badphone@test.com", "phone": "123", "password": "longenough123",
+        "terms_accepted": "on", "csrf_token": csrf
+    })
+    assert "رقم الجوال غير صحيح" in r.get_data(as_text=True)
 
 
 # ---------------------------------------------------------------- الصلاحيات (Authorization)

@@ -22,9 +22,28 @@
           <input type="text" name="color">
         </div>
         <div class="field">
+          <label>الجنس</label>
+          <select name="gender">
+            <option value="">— غير محدد —</option>
+            {% for g in genders %}
+            <option value="{{ g }}">{{ g }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
           <label>سنة الميلاد</label>
           <input type="number" name="birth_year" min="1990" max="2026">
         </div>
+        <div class="field">
+          <label>اسم الأب (اختياري)</label>
+          <input type="text" name="sire_name">
+        </div>
+      </div>
+      <div class="field">
+        <label>اسم الأم (اختياري)</label>
+        <input type="text" name="dam_name">
       </div>
       <div class="field">
         <label>نوع الخدمة</label>

@@ -18,8 +18,8 @@
   </p>
   {% endif %}
   <div class="hero-cta">
-    <a href="{{ url_for('stable_book', slug=stable.slug) }}" class="btn btn-gold">احجز حصتك الآن</a>
-    <a href="#packages" class="btn">استعرض الباقات</a>
+    <a href="{{ url_for('stable_book', slug=stable.slug) }}" class="btn btn-gold">{{ t('home.book_now') }}</a>
+    <a href="#packages" class="btn">{{ t('home.view_packages') }}</a>
   </div>
 </section>
 

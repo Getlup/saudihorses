@@ -26,6 +26,7 @@ from models import (db, Stable, User, Horse, DailyLog, DailyTask, Package, Booki
                      Achievement, GalleryPhoto, PhoneOtp)
 from pdf_reports import build_daily_report_pdf, build_invoice_pdf
 from sms import send_otp_sms, SmsSendError
+from translations import translate
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 UPLOAD_DIR = os.path.join(BASE_DIR, "static", "uploads")
@@ -42,10 +43,10 @@ if not app.config["DEBUG"] and not app.config["SECRET_KEY"]:
 if app.config["DEBUG"] and not app.config["SECRET_KEY"]:
     app.config["SECRET_KEY"] = "dev-only-not-secure-change-me"
 
-# رفض بدء التطبيق في الإنتاج إذا كان مزود SMS لا يزال "console" (يسجّل الكود بدل إرساله فعليًا) —
-# خطأ إعداد شائع وخطير يترك التسجيل الفعلي بدون رسائل نصية حقيقية.
+# تنبيه (وليس رفضًا) لو مزود SMS لا يزال "console" بالإنتاج — التسجيل الحالي بريد/كلمة مرور فلا يعتمد
+# على SMS فعليًا، لكن هذا يبقى تذكيرًا مفيدًا وقت إعادة تفعيل تدفق OTP بالجوال لاحقًا.
 if not app.config["DEBUG"] and app.config["SMS_PROVIDER"] == "console":
-    sys.exit("خطأ إعداد حرج: يجب ضبط SMS_PROVIDER (msegat/unifonic) قبل تشغيل التطبيق في الإنتاج.")
+    logging.warning("SMS_PROVIDER=console بالإنتاج — مسار OTP بالجوال معطَّل حاليًا فهذا غير مؤثر الآن.")
 
 db.init_app(app)
 migrate = Migrate(app, db)
@@ -202,7 +203,20 @@ def inject_globals():
     nav_stable = None
     if request.view_args and "slug" in request.view_args:
         nav_stable = Stable.query.filter_by(slug=request.view_args["slug"]).first()
-    return {"current_user": current_user(), "today": date.today(), "nav_stable": nav_stable}
+    lang = session.get("lang", "ar")
+    return {
+        "current_user": current_user(), "today": date.today(), "nav_stable": nav_stable,
+        "lang": lang, "t": lambda key: translate(key, lang),
+    }
+
+
+@app.route("/lang/<code>")
+def set_language(code):
+    """تبديل لغة الواجهة (ar/en) — يُخزَّن الاختيار بالجلسة ويُعاد توجيه المستخدم لنفس الصفحة."""
+    if code in ("ar", "en"):
+        session["lang"] = code
+        session.permanent = True
+    return redirect(request.referrer or url_for("home"))
 
 
 # ---------------------------------------------------------------- ترويسات أمنية على كل استجابة
@@ -340,102 +354,64 @@ def logout():
     return redirect(url_for("home"))
 
 
-# ---------------------------------------------------------------- التسجيل: رقم الجوال + OTP (مرة واحدة فقط)
+@app.route("/terms")
+def terms():
+    return render_template("terms.html")
+
+
+# ---------------------------------------------------------------- التسجيل: بريد إلكتروني + كلمة مرور
+# ملاحظة: التسجيل عبر OTP بالجوال مُعطَّل مؤقتًا (يحتاج مزود SMS مربوط بسجل تجاري مطابق للنشاط).
+# البنية التحتية (PhoneOtp، sms.py، normalize_saudi_phone) باقية بالكود جاهزة لإعادة التفعيل لاحقًا
+# بدون إعادة بناء — فقط يُعاد ربط هذا المسار بخطوتَي stable_register_verify عند توفر مزود SMS حقيقي.
 @app.route("/s/<slug>/register", methods=["GET", "POST"])
 @limiter.limit("10 per minute", methods=["POST"])
 def stable_register(slug):
-    """الخطوة 1: إدخال الاسم ورقم الجوال، وإرسال كود تحقق عبر SMS."""
+    """تسجيل زائر جديد يريد حجز حصص ركوب/تدريب في مربط محدد."""
     stable = Stable.query.filter_by(slug=slug).first_or_404()
 
     if request.method == "POST":
         name = request.form.get("name", "").strip()
+        email = request.form.get("email", "").strip().lower()
         raw_phone = request.form.get("phone", "").strip()
-        phone = normalize_saudi_phone(raw_phone)
+        password = request.form.get("password", "")
+        terms_accepted = request.form.get("terms_accepted") == "on"
 
-        if not name or not raw_phone:
+        if not all([name, email, raw_phone, password]):
             flash("الرجاء تعبئة جميع الحقول المطلوبة", "error")
             return render_template("register.html", stable=stable)
+        if not terms_accepted:
+            flash("الرجاء الموافقة على الشروط والأحكام للمتابعة", "error")
+            return render_template("register.html", stable=stable)
+        phone = normalize_saudi_phone(raw_phone)
         if not phone:
             flash("رقم الجوال غير صحيح — تأكد من كتابته بصيغة سعودية صالحة (05XXXXXXXX)", "error")
-            return render_template("register.html", stable=stable, name=name, phone=raw_phone)
-        if User.query.filter_by(phone=phone).first():
-            flash("هذا الرقم مسجّل مسبقًا، الرجاء تسجيل الدخول بدلًا من ذلك", "error")
             return render_template("register.html", stable=stable)
-
-        ok, error = create_and_send_otp(phone, purpose=PhoneOtp.PURPOSE_REGISTER)
-        if not ok:
-            flash(error, "error")
-            return render_template("register.html", stable=stable, name=name, phone=raw_phone)
-
-        session["pending_registration"] = {"name": name, "phone": phone, "stable_slug": stable.slug}
-        flash("تم إرسال كود التحقق إلى جوالك", "success")
-        return redirect(url_for("stable_register_verify", slug=stable.slug))
-
-    return render_template("register.html", stable=stable)
-
-
-@app.route("/s/<slug>/register/verify", methods=["GET", "POST"])
-@limiter.limit("10 per minute", methods=["POST"])
-def stable_register_verify(slug):
-    """الخطوة 2: إدخال كود OTP + اختيار اسم مستخدم وكلمة مرور لإنشاء الحساب فعليًا."""
-    stable = Stable.query.filter_by(slug=slug).first_or_404()
-    pending = session.get("pending_registration")
-    if not pending or pending.get("stable_slug") != slug:
-        flash("الرجاء البدء من صفحة التسجيل أولًا", "error")
-        return redirect(url_for("stable_register", slug=slug))
-
-    if request.method == "POST":
-        code = request.form.get("code", "").strip()
-        username = request.form.get("username", "").strip().lower()
-        password = request.form.get("password", "")
-
-        if not all([code, username, password]):
-            flash("الرجاء تعبئة جميع الحقول", "error")
-            return render_template("register_verify.html", stable=stable, phone=pending["phone"])
-        if not USERNAME_RE.match(username):
-            flash("اسم المستخدم يجب أن يكون 4-30 حرفًا/رقمًا (يسمح بـ _ و .)", "error")
-            return render_template("register_verify.html", stable=stable, phone=pending["phone"])
         if len(password) < 8:
             flash("يجب ألا تقل كلمة المرور عن 8 أحرف", "error")
-            return render_template("register_verify.html", stable=stable, phone=pending["phone"])
-        if User.query.filter_by(username=username).first():
-            flash("اسم المستخدم هذا مستخدم بالفعل، اختر اسمًا آخر", "error")
-            return render_template("register_verify.html", stable=stable, phone=pending["phone"])
+            return render_template("register.html", stable=stable)
+        if "@" not in email or "." not in email.split("@")[-1]:
+            flash("الرجاء إدخال بريد إلكتروني صحيح", "error")
+            return render_template("register.html", stable=stable)
+        if User.query.filter_by(email=email).first():
+            flash("هذا البريد الإلكتروني مسجّل مسبقًا", "error")
+            return render_template("register.html", stable=stable)
+        if User.query.filter_by(phone=phone).first():
+            flash("رقم الجوال هذا مسجّل مسبقًا لحساب آخر", "error")
+            return render_template("register.html", stable=stable)
 
-        ok, error = verify_otp(pending["phone"], code, purpose=PhoneOtp.PURPOSE_REGISTER)
-        if not ok:
-            flash(error, "error")
-            return render_template("register_verify.html", stable=stable, phone=pending["phone"])
-
-        user = User(name=pending["name"], phone=pending["phone"], username=username,
+        user = User(name=name, email=email, phone=phone,
                     role=User.ROLE_VISITOR, stable_id=stable.id,
-                    phone_verified_at=datetime.now(timezone.utc).replace(tzinfo=None))
+                    terms_accepted_at=datetime.now(timezone.utc).replace(tzinfo=None))
         user.set_password(password)
         db.session.add(user)
         db.session.commit()
-
-        session.pop("pending_registration", None)
         session.clear()
         session["user_id"] = user.id
         session.permanent = True
         flash("تم إنشاء حسابك بنجاح، يمكنك الآن حجز حصتك", "success")
         return redirect(url_for("stable_book", slug=stable.slug))
 
-    return render_template("register_verify.html", stable=stable, phone=pending["phone"])
-
-
-@app.route("/s/<slug>/register/resend", methods=["POST"])
-@limiter.limit("5 per minute")
-def stable_register_resend(slug):
-    """إعادة إرسال كود التحقق لنفس الرقم المُدخل بالخطوة الأولى."""
-    pending = session.get("pending_registration")
-    if not pending or pending.get("stable_slug") != slug:
-        flash("الرجاء البدء من صفحة التسجيل أولًا", "error")
-        return redirect(url_for("stable_register", slug=slug))
-
-    ok, error = create_and_send_otp(pending["phone"], purpose=PhoneOtp.PURPOSE_REGISTER)
-    flash("تم إرسال كود جديد" if ok else error, "success" if ok else "error")
-    return redirect(url_for("stable_register_verify", slug=slug))
+    return render_template("register.html", stable=stable)
 
 
 # ---------------------------------------------------------------- لوحة مالك الإسطبل
@@ -665,7 +641,7 @@ def admin_horse_new():
         name = request.form.get("name", "").strip()
         if not name:
             flash("اسم الحصان مطلوب", "error")
-            return render_template("admin_horse_new.html", horse_owners=horse_owners)
+            return render_template("admin_horse_new.html", horse_owners=horse_owners, genders=Horse.GENDERS)
 
         photo_path = save_photo(request.files.get("photo"), "horses/new")
         owner_id = request.form.get("owner_id") or None
@@ -680,12 +656,19 @@ def admin_horse_new():
         if birth_year_raw and birth_year_raw.isdigit():
             birth_year = int(birth_year_raw)
 
+        gender = request.form.get("gender", "").strip()
+        if gender not in Horse.GENDERS:
+            gender = None
+
         horse = Horse(
             stable_id=user.stable_id,
             owner_id=owner_id,
             name=name,
             breed=request.form.get("breed", "").strip()[:100],
             color=request.form.get("color", "").strip()[:50],
+            gender=gender,
+            sire_name=request.form.get("sire_name", "").strip()[:100] or None,
+            dam_name=request.form.get("dam_name", "").strip()[:100] or None,
             birth_year=birth_year,
             service_type=request.form.get("service_type", "boarding"),
             notes=request.form.get("notes", "").strip()[:2000],
@@ -697,7 +680,7 @@ def admin_horse_new():
         flash(f"تمت إضافة الحصان «{horse.name}» بنجاح", "success")
         return redirect(url_for("admin_dashboard"))
 
-    return render_template("admin_horse_new.html", horse_owners=horse_owners)
+    return render_template("admin_horse_new.html", horse_owners=horse_owners, genders=Horse.GENDERS)
 
 
 MAX_GALLERY_PHOTOS = 30

@@ -2,26 +2,35 @@
 {% block content %}
 <div class="container" style="padding:50px 24px 90px;">
   <div class="form-card">
-    <h2>إنشاء حساب زائر</h2>
-    <div class="sub">لحجز حصص الركوب والتدريب في {{ stable.name_ar }}</div>
-    <div class="steps-indicator">
-      <span class="step is-active">1. رقم الجوال</span>
-      <span class="step">2. تفعيل الحساب</span>
-    </div>
+    <h2>{{ t('register.title') }}</h2>
+    <div class="sub">{{ stable.name_ar }}</div>
     <form method="POST">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="field">
-        <label>الاسم الكامل</label>
-        <input type="text" name="name" value="{{ name or '' }}" required>
+        <label>{{ t('register.name') }}</label>
+        <input type="text" name="name" required>
       </div>
       <div class="field">
-        <label>رقم الجوال</label>
-        <input type="tel" name="phone" value="{{ phone or '' }}" placeholder="05XXXXXXXX" dir="ltr" required>
-        <div class="hint">سنرسل لك كود تحقق برسالة نصية على هذا الرقم</div>
+        <label>{{ t('register.email') }}</label>
+        <input type="email" name="email" required>
       </div>
-      <button type="submit" class="btn btn-gold btn-block">إرسال كود التحقق</button>
+      <div class="field">
+        <label>{{ t('register.phone') }}</label>
+        <input type="tel" name="phone" placeholder="05XXXXXXXX" dir="ltr" required>
+      </div>
+      <div class="field">
+        <label>{{ t('register.password') }}</label>
+        <input type="password" name="password" required minlength="8">
+      </div>
+      <div class="field" style="display:flex; align-items:flex-start; gap:8px;">
+        <input type="checkbox" name="terms_accepted" id="terms_accepted" required style="margin-top:5px; width:auto;">
+        <label for="terms_accepted" style="margin:0; font-weight:normal; font-size:.88rem;">
+          {{ t('register.terms_prefix') }} <a href="{{ url_for('terms') }}" target="_blank" rel="noopener">{{ t('register.terms_link') }}</a>
+        </label>
+      </div>
+      <button type="submit" class="btn btn-gold btn-block">{{ t('register.submit') }}</button>
     </form>
-    <div class="sub" style="margin-top:22px;">لديك حساب بالفعل؟ <a href="{{ url_for('login') }}">تسجيل الدخول</a></div>
+    <div class="sub" style="margin-top:22px;">{{ t('register.have_account') }} <a href="{{ url_for('login') }}">{{ t('login.title') }}</a></div>
   </div>
 </div>
 {% endblock %}

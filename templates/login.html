@@ -2,21 +2,21 @@
 {% block content %}
 <div class="container" style="padding:50px 24px 90px;">
   <div class="form-card">
-    <h2>تسجيل الدخول</h2>
-    <div class="sub">أهلًا بعودتك إلى الخيول السعودية</div>
+    <h2>{{ t('login.title') }}</h2>
+    <div class="sub">{{ t('login.subtitle') }}</div>
     <form method="POST">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="field">
-        <label>اسم المستخدم</label>
+        <label>{{ t('login.username') }}</label>
         <input type="text" name="username" dir="ltr" autocomplete="username" required autofocus>
       </div>
       <div class="field">
-        <label>كلمة المرور</label>
+        <label>{{ t('login.password') }}</label>
         <input type="password" name="password" required>
       </div>
-      <button type="submit" class="btn btn-gold btn-block">دخول</button>
+      <button type="submit" class="btn btn-gold btn-block">{{ t('login.submit') }}</button>
     </form>
-    <div class="sub" style="margin-top:22px;">ليس لديك حساب؟ <a href="{{ url_for('home') }}">استكشف المرابط وأنشئ حسابك</a></div>
+    <div class="sub" style="margin-top:22px;">{{ t('login.no_account') }} <a href="{{ url_for('home') }}">{{ t('login.explore') }}</a></div>
   </div>
 </div>
 {% endblock %}

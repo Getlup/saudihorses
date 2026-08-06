@@ -1,0 +1,48 @@
+<div class="horse-info-card">
+  <div class="horse-info-header">
+    <h3>{{ horse.name }}</h3>
+    {% if horse.average_rating %}
+    <span class="horse-info-rating">★ {{ horse.average_rating }}</span>
+    {% endif %}
+  </div>
+  <dl class="horse-info-grid">
+    <div class="horse-info-item">
+      <dt>العمر</dt>
+      <dd>{{ (horse.age ~ " سنة") if horse.age is not none else "—" }}</dd>
+    </div>
+    <div class="horse-info-item">
+      <dt>الجنس</dt>
+      <dd>{{ horse.gender or "—" }}</dd>
+    </div>
+    <div class="horse-info-item">
+      <dt>السلالة</dt>
+      <dd>{{ horse.breed or "—" }}</dd>
+    </div>
+    <div class="horse-info-item">
+      <dt>اللون</dt>
+      <dd>{{ horse.color or "—" }}</dd>
+    </div>
+    <div class="horse-info-item">
+      <dt>الأب</dt>
+      <dd>{{ horse.sire_name or "—" }}</dd>
+    </div>
+    <div class="horse-info-item">
+      <dt>الأم</dt>
+      <dd>{{ horse.dam_name or "—" }}</dd>
+    </div>
+    <div class="horse-info-item">
+      <dt>المالك</dt>
+      <dd>{{ horse.owner.name if horse.owner else "الإسطبل" }}</dd>
+    </div>
+    <div class="horse-info-item">
+      <dt>نوع الخدمة</dt>
+      <dd>
+        {% if horse.service_type == 'boarding' %}إيواء
+        {% elif horse.service_type == 'training' %}تدريب/ركوب
+        {% elif horse.service_type == 'rental' %}إيجار يومي
+        {% else %}{{ horse.service_type or "—" }}
+        {% endif %}
+      </dd>
+    </div>
+  </dl>
+</div>

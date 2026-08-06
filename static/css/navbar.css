@@ -111,6 +111,19 @@
 
 /* ---------- إجراءات الشريط (جرس/مستخدم) ---------- */
 .header-actions{ display: flex; align-items: center; gap: 18px; flex: none; }
+
+/* ---------- مبدّل اللغة (علمان صغيران) ---------- */
+.lang-toggle{ display: flex; align-items: center; gap: 6px; }
+.lang-flag{
+  font-size: 1.15rem; line-height: 1; padding: 4px; border-radius: 6px;
+  opacity: .5; filter: grayscale(60%); transition: opacity 150ms ease, filter 150ms ease, background-color 150ms ease;
+}
+.lang-flag:hover{ opacity: .85; filter: grayscale(20%); background: var(--hover-bg); }
+.lang-flag.is-active{ opacity: 1; filter: none; }
+.mobile-lang-toggle{ display: flex; gap: 10px; padding: 14px 24px; border-bottom: 1px solid var(--border-soft); }
+.mobile-lang-toggle a{ opacity: .6; color: var(--text-primary); }
+.mobile-lang-toggle a.is-active{ opacity: 1; font-weight: 600; }
+
 .user-trigger{
   display: flex; align-items: center; gap: 10px;
   background: none; border: none; cursor: pointer; color: var(--text-primary);
@@ -208,6 +221,35 @@
   transition: opacity 500ms ease, transform 500ms cubic-bezier(0.22,1,0.36,1);
 }
 [data-reveal].is-visible{ opacity: 1; transform: translateY(0); }
+
+/* ---------- بطاقة بيانات الحصان ---------- */
+.horse-info-card{
+  background: var(--section-bg);
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  padding: 22px;
+}
+.horse-info-header{
+  display: flex; justify-content: space-between; align-items: baseline;
+  border-bottom: 1px solid var(--border-soft);
+  padding-bottom: 12px; margin-bottom: 14px;
+}
+.horse-info-header h3{ margin: 0; border: none; padding: 0; }
+.horse-info-rating{ color: var(--gold-accent); font-family: 'Amiri', serif; font-size: 1.05rem; }
+.horse-info-grid{
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px 20px;
+  margin: 0;
+}
+.horse-info-item dt{
+  color: var(--text-secondary); font-size: .74rem; letter-spacing: .4px;
+  margin-bottom: 3px;
+}
+.horse-info-item dd{
+  margin: 0; color: var(--text-primary); font-size: .95rem; font-weight: 500;
+}
+@media(max-width: 480px){
+  .horse-info-grid{ grid-template-columns: 1fr; }
+}
 
 /* ---------- تقليل الحركة ---------- */
 @media (prefers-reduced-motion: reduce){
