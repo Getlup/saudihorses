@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+
+<section class="hero">
+  <div class="hero-mark"></div>
+  <div class="eyebrow">Lounge · إنجازات الخيول</div>
+  <h1>قاعة الأبطال</h1>
+  <p class="lead">
+    إنجازات ومشاركات وجوائز خيول متميزة من مختلف المرابط المنضمّة لمنصة الخيول السعودية.
+  </p>
+</section>
+
+<section>
+  <div class="container">
+    {% if achievements %}
+    <div class="grid grid-3">
+      {% for a in achievements %}
+      <div class="horse-card">
+        {% if a.photo_path %}
+          <img class="horse-photo" src="{{ url_for('static', filename=a.photo_path) }}" alt="{{ a.horse.name }}">
+        {% elif a.horse.photo_path %}
+          <img class="horse-photo" src="{{ url_for('static', filename=a.horse.photo_path) }}" alt="{{ a.horse.name }}">
+        {% else %}
+          <div class="horse-photo placeholder">{{ a.horse.name }}</div>
+        {% endif %}
+        <div class="horse-body">
+          <h3>{{ a.title }}</h3>
+          <div class="horse-meta">
+            {{ a.horse.name }} · {{ a.stable.name_ar }}
+            {% if a.achievement_date %} · {{ a.achievement_date }}{% endif %}
+          </div>
+          {% if a.competition_name %}
+          <div class="badge" style="margin-top:8px;">{{ a.competition_name }}</div>
+          {% endif %}
+          {% if a.description %}
+          <p style="color:var(--muted); font-size:.88rem; margin-top:10px;">{{ a.description }}</p>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">لا توجد إنجازات معتمدة بعد — أول من يُضيف إنجازًا لخيله سيظهر هنا فور الموافقة عليه.</div>
+    {% endif %}
+  </div>
+</section>
+
+{% endblock %}

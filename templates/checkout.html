@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container" style="padding:50px 24px 90px;">
+  <div class="form-card">
+    <h2>إتمام الدفع</h2>
+    <div class="sub">{{ booking.package.name_ar if booking.package else "حجز" }} — {{ "%.0f"|format(booking.amount) }} ر.س</div>
+
+    <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="field">
+        <label>طريقة الدفع</label>
+        <select required>
+          <option>مدى</option>
+          <option>Apple Pay</option>
+          <option>Visa / Mastercard</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>رقم البطاقة (تجريبي)</label>
+        <input type="text" placeholder="XXXX XXXX XXXX XXXX" maxlength="19">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>تاريخ الانتهاء</label>
+          <input type="text" placeholder="MM/YY">
+        </div>
+        <div class="field">
+          <label>CVV</label>
+          <input type="text" placeholder="***">
+        </div>
+      </div>
+      <button type="submit" class="btn btn-gold btn-block">ادفع {{ "%.0f"|format(booking.amount) }} ر.س</button>
+      <p style="color:var(--muted); font-size:.78rem; text-align:center; margin-top:14px;">
+        هذه بوابة دفع تجريبية للعرض التوضيحي فقط — لا يتم تمرير أي بيانات دفع حقيقية.
+      </p>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#14201A">
+<link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo-nav.png') }}">
+<title>{% block title %}الخيول السعودية — منصّة إدارة الإسطبلات وحجز الفروسية{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a href="{{ url_for('home') }}" class="brand"><img src="{{ url_for('static', filename='img/logo-nav.png') }}" alt="" class="brand-logo"> الخيول السعودية</a>
+
+    <input type="checkbox" id="nav-toggle" class="nav-toggle">
+    <label for="nav-toggle" class="nav-burger" aria-label="فتح القائمة">
+      <span></span><span></span><span></span>
+    </label>
+
+    <nav class="nav-links">
+      <a href="{{ url_for('home') }}">الرئيسية</a>
+      <a href="{{ url_for('lounge') }}">Lounge</a>
+      {% if nav_stable %}
+        <a href="{{ url_for('stable_book', slug=nav_stable.slug) }}">حجز الحصص</a>
+      {% endif %}
+      {% if current_user %}
+        {% if current_user.role == 'super_admin' %}
+          <a href="{{ url_for('platform_dashboard') }}">لوحة المنصة</a>
+          <a href="{{ url_for('platform_lounge') }}">مراجعة Lounge</a>
+        {% endif %}
+        {% if current_user.role == 'stable_owner' or current_user.role == 'super_admin' or current_user.role == 'staff' %}
+          <a href="{{ url_for('admin_dashboard') }}">لوحة الإسطبل</a>
+        {% elif current_user.role == 'horse_owner' %}
+          <a href="{{ url_for('owner_dashboard') }}">خيولي</a>
+        {% endif %}
+        <form method="POST" action="{{ url_for('logout') }}" style="margin:0; display:inline;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-sm" style="cursor:pointer;">تسجيل الخروج</button>
+        </form>
+      {% else %}
+        <a href="{{ url_for('login') }}">تسجيل الدخول</a>
+        {% if nav_stable %}
+          <a href="{{ url_for('stable_register', slug=nav_stable.slug) }}" class="btn btn-sm">إنشاء حساب</a>
+        {% endif %}
+      {% endif %}
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="container" style="padding-top:22px;">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+  </div>
+  {% block content %}{% endblock %}
+</main>
+
+<footer>
+  <div class="rail-divider" style="max-width:300px; margin:0 auto 20px;"><span class="mark"></span></div>
+  منصّة الخيول السعودية — لإدارة الإسطبلات وتنظيم خدمات الفروسية · {{ today.year }}
+</footer>
+
+</body>
+</html>

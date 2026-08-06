@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container" style="padding:40px 24px 90px;">
+  <a href="{{ url_for('platform_dashboard') }}" class="btn btn-sm">→ رجوع لكل المرابط</a>
+
+  <div class="form-card" style="margin-top:24px;">
+    <h2>تعديل المربط</h2>
+    <div class="sub">الرابط المختصر: <span dir="ltr">/s/{{ stable.slug }}</span> (لا يمكن تغييره)</div>
+    <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="field">
+        <label>اسم المربط</label>
+        <input type="text" name="stable_name" value="{{ stable.name_ar }}" required>
+      </div>
+      <div class="field">
+        <label>المدينة</label>
+        <select name="city">
+          <option value="">— غير محدد —</option>
+          {% for c in cities %}
+          <option value="{{ c }}" {% if stable.city == c %}selected{% endif %}>{{ c }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>الموقع التفصيلي (حي/طريق) — اختياري</label>
+        <input type="text" name="location" value="{{ stable.location or '' }}">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>خط العرض (Latitude)</label>
+          <input type="text" name="latitude" value="{{ stable.latitude if stable.latitude is not none else '' }}" dir="ltr">
+        </div>
+        <div class="field">
+          <label>خط الطول (Longitude)</label>
+          <input type="text" name="longitude" value="{{ stable.longitude if stable.longitude is not none else '' }}" dir="ltr">
+        </div>
+      </div>
+      <button type="submit" class="btn btn-gold btn-block">حفظ التعديل</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

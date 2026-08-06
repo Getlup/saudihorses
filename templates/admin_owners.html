@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container" style="padding:40px 24px 90px;">
+
+  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px; margin-bottom:10px;">
+    <div>
+      <div class="eyebrow" style="color:var(--gold); font-size:.8rem; letter-spacing:2px;">لوحة مالك الإسطبل</div>
+      <h2 style="margin:4px 0;">مالكو الخيول</h2>
+    </div>
+    <a href="{{ url_for('admin_owner_new') }}" class="btn btn-gold">+ إضافة مالك خيل جديد</a>
+  </div>
+
+  <div class="rail-divider"><span class="mark"></span></div>
+
+  {% if owners %}
+  <div class="panel">
+    <div class="table-scroll">
+    <table>
+      <thead>
+        <tr><th>الاسم</th><th>البريد الإلكتروني</th><th>الجوال</th><th>عدد الخيول</th></tr>
+      </thead>
+      <tbody>
+        {% for o in owners %}
+        <tr>
+          <td>{{ o.name }}</td>
+          <td>{{ o.email }}</td>
+          <td>{{ o.phone or "—" }}</td>
+          <td>{{ o.horses|length }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+  {% else %}
+  <div class="empty-state">لا يوجد مالكو خيول مسجّلون بعد. أضف أول حساب لعميل يودع خيله عندك.</div>
+  {% endif %}
+
+</div>
+{% endblock %}

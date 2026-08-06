@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container" style="padding:40px 24px 90px;">
+  <a href="{{ url_for('owner_horse_detail', horse_id=horse.id) }}" class="btn btn-sm">→ رجوع لملف {{ horse.name }}</a>
+
+  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px; margin:20px 0 10px;">
+    <div>
+      <div class="eyebrow" style="color:var(--gold); font-size:.8rem; letter-spacing:2px;">مهام اليوم</div>
+      <h2 style="margin:4px 0;">{{ horse.name }} — {{ day }}</h2>
+    </div>
+    <div style="display:flex; gap:10px; align-items:center;">
+      <a href="{{ url_for('owner_horse_tasks', horse_id=horse.id, date=prev_day) }}" class="btn btn-sm">◄ اليوم السابق</a>
+      {% if day != today %}
+      <a href="{{ url_for('owner_horse_tasks', horse_id=horse.id) }}" class="btn btn-sm">اليوم</a>
+      {% endif %}
+      <a href="{{ url_for('owner_horse_tasks', horse_id=horse.id, date=next_day) }}" class="btn btn-sm">اليوم التالي ►</a>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-bottom:24px;">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <strong>نسبة الإنجاز</strong>
+      <span style="color:var(--gold); font-family:'Amiri', serif; font-size:1.2rem;">{{ done_count }} / {{ total_count }}</span>
+    </div>
+  </div>
+
+  <div class="grid grid-2">
+    {% for task in tasks %}
+    <div class="panel">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h3 style="margin:0; border:none; padding:0; font-size:1.05rem;">{{ task.type_label }}</h3>
+        {% if task.status == 'done' %}
+          <span class="badge" style="border-color:var(--gold); color:var(--gold);">✓ منجزة</span>
+        {% elif task.status == 'skipped' %}
+          <span class="badge" style="border-color:var(--wine-light); color:var(--wine-light);">متجاوَزة</span>
+        {% else %}
+          <span class="badge">بانتظار التنفيذ</span>
+        {% endif %}
+      </div>
+      {% if task.assignee_name %}
+      <p style="color:var(--muted); font-size:.85rem; margin:4px 0;">المسؤول: {{ task.assignee_name }}</p>
+      {% endif %}
+      {% if task.notes %}
+      <p style="color:var(--muted); font-size:.85rem; margin:4px 0;">{{ task.notes }}</p>
+      {% endif %}
+      {% if task.photo_path %}
+      <img src="{{ url_for('static', filename=task.photo_path) }}" style="max-width:180px; margin-top:8px;">
+      {% endif %}
+      {% if task.completed_at %}
+      <p style="color:var(--muted); font-size:.78rem; margin-top:10px;">
+        آخر تحديث: {{ task.completed_at.strftime('%Y-%m-%d %H:%M') }}
+      </p>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

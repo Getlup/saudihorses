@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block content %}
+
+<section class="hero">
+  <div class="hero-mark"></div>
+  <div class="eyebrow">منصّة فروسية سعودية</div>
+  <h1>الخيول السعودية</h1>
+  <p class="lead">
+    منصّة تجمع مرابط الفروسية في المملكة — لكل مربط صفحته الخاصة، وخيوله، وعملاؤه.
+    اختر مربطًا لتتصفح خيوله وتحجز حصة ركوب أو تدريب.
+  </p>
+</section>
+
+<section>
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow">المرابط المنضمّة</div>
+      <h2>اختر مربطك</h2>
+    </div>
+
+    {% if cities_in_use %}
+    <form method="GET" style="display:flex; gap:12px; justify-content:center; align-items:center; flex-wrap:wrap; margin-bottom:36px;">
+      <label for="city-filter" style="color:var(--muted); font-size:.9rem;">فلترة حسب المدينة:</label>
+      <select id="city-filter" name="city" onchange="this.form.submit()" style="width:auto; min-width:180px; padding:10px 14px; background:var(--ink-2); border:1px solid var(--line); color:var(--parchment);">
+        <option value="">كل المدن</option>
+        {% for c in cities_in_use %}
+        <option value="{{ c }}" {% if selected_city == c %}selected{% endif %}>{{ c }}</option>
+        {% endfor %}
+      </select>
+      {% if selected_city %}
+      <a href="{{ url_for('home') }}" class="btn btn-sm">إلغاء الفلترة</a>
+      {% endif %}
+    </form>
+    {% endif %}
+
+    {% if stables %}
+    <div class="grid grid-3">
+      {% for stable in stables %}
+      <div class="panel">
+        <h3 style="margin-top:0;">{{ stable.name_ar }}</h3>
+        {% if stable.city or stable.location %}
+        <p style="color:var(--muted); font-size:.9rem;">
+          {{ stable.city or "" }}{% if stable.city and stable.location %} — {% endif %}{{ stable.location or "" }}
+        </p>
+        {% endif %}
+        {% if stable.description %}
+        <p style="color:var(--muted); font-size:.9rem;">{{ stable.description }}</p>
+        {% endif %}
+        <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
+          <a href="{{ url_for('stable_home', slug=stable.slug) }}" class="btn btn-gold">ادخل للمربط</a>
+          {% if stable.latitude is not none and stable.longitude is not none %}
+          <a href="https://www.google.com/maps?q={{ stable.latitude }},{{ stable.longitude }}" target="_blank" rel="noopener" class="btn btn-sm">📍 الموقع</a>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+      {% if selected_city %}لا توجد مرابط في هذي المدينة حاليًا.{% else %}لا توجد مرابط منضمّة بعد.{% endif %}
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+{% endblock %}

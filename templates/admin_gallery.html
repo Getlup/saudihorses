@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container" style="padding:40px 24px 90px;">
+  <a href="{{ url_for('admin_dashboard') }}" class="btn btn-sm">→ رجوع للوحة الإسطبل</a>
+
+  <div style="margin:24px 0 10px;">
+    <div class="eyebrow" style="color:var(--gold); font-size:.8rem; letter-spacing:2px;">لوحة الإسطبل</div>
+    <h2 style="margin:4px 0;">معرض صور المربط</h2>
+    <p style="color:var(--muted); font-size:.85rem;">{{ photos|length }} / {{ max_photos }} صورة</p>
+  </div>
+
+  <div class="form-card" style="margin-bottom:30px;">
+    <h3 style="margin-top:0;">إضافة صورة جديدة</h3>
+    <form method="POST" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="field">
+        <label>الصورة</label>
+        <input type="file" name="photo" accept="image/*" required>
+      </div>
+      <div class="field">
+        <label>وصف مختصر (اختياري)</label>
+        <input type="text" name="caption" placeholder="مثال: ساحة التدريب الرئيسية">
+      </div>
+      <button type="submit" class="btn btn-gold btn-block" {% if photos|length >= max_photos %}disabled{% endif %}>
+        إضافة للمعرض
+      </button>
+    </form>
+  </div>
+
+  {% if photos %}
+  <div class="grid grid-3">
+    {% for photo in photos %}
+    <div class="horse-card">
+      <img class="horse-photo" src="{{ url_for('static', filename=photo.photo_path) }}" alt="{{ photo.caption or '' }}">
+      <div class="horse-body">
+        {% if photo.caption %}
+        <p style="color:var(--muted); font-size:.85rem; margin:0 0 12px;">{{ photo.caption }}</p>
+        {% endif %}
+        <form method="POST" action="{{ url_for('admin_gallery_delete', photo_id=photo.id) }}" style="margin:0;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-sm">حذف</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state">لا توجد صور بعد. أضف أول صورة لمعرض مربطك.</div>
+  {% endif %}
+</div>
+{% endblock %}

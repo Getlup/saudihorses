@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container" style="padding:50px 24px 90px;">
+  <div class="form-card">
+    <h2>قيّم تجربتك</h2>
+    <div class="sub">رأيك يساعدنا على الارتقاء بخدمة المربط</div>
+    <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="field">
+        <label>تقييم الحصان</label>
+        <div class="stars-input" style="flex-direction:row-reverse;">
+          {% for i in range(5,0,-1) %}
+          <input type="radio" id="hr{{i}}" name="horse_rating" value="{{i}}" {% if i==5 %}checked{% endif %}>
+          <label for="hr{{i}}">★</label>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="field">
+        <label>تقييم التجربة العامة</label>
+        <div class="stars-input" style="flex-direction:row-reverse;">
+          {% for i in range(5,0,-1) %}
+          <input type="radio" id="er{{i}}" name="experience_rating" value="{{i}}" {% if i==5 %}checked{% endif %}>
+          <label for="er{{i}}">★</label>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="field">
+        <label>تعليقك (اختياري)</label>
+        <textarea name="comment" rows="4" placeholder="شاركنا انطباعك عن الحصان والتجربة..."></textarea>
+      </div>
+      <button type="submit" class="btn btn-gold btn-block">إرسال التقييم</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

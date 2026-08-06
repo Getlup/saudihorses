@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container" style="padding:70px 24px 100px; text-align:center;">
+  <div class="eyebrow" style="color:var(--gold);">الدفع غير متاح مؤقتًا</div>
+  <h2 style="margin:12px 0 20px;">بوابة الدفع قيد التجهيز</h2>
+  <p style="color:var(--muted); max-width:480px; margin:0 auto 30px;">
+    نعمل حاليًا على ربط بوابة دفع حقيقية وآمنة. حجزك محفوظ ولن يُفقد —
+    تواصل معنا مباشرة لإتمام الحجز، أو راجعنا لاحقًا لإتمام الدفع إلكترونيًا.
+  </p>
+  <a href="{{ url_for('home') }}" class="btn">العودة للرئيسية</a>
+</div>
+{% endblock %}

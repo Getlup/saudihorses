@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container" style="padding:40px 24px 90px;">
+
+  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px; margin-bottom:10px;">
+    <div>
+      <div class="eyebrow" style="color:var(--gold); font-size:.8rem; letter-spacing:2px;">لوحة مشرف المنصة</div>
+      <h2 style="margin:4px 0;">كل المرابط</h2>
+    </div>
+    <a href="{{ url_for('platform_stable_new') }}" class="btn btn-gold">+ إنشاء مربط جديد</a>
+  </div>
+
+  <div class="rail-divider"><span class="mark"></span></div>
+
+  {% if stables %}
+  <div class="panel">
+    <div class="table-scroll">
+    <table>
+      <thead>
+        <tr><th>اسم المربط</th><th>الرابط المختصر</th><th>عدد الخيول</th><th>تاريخ الإنشاء</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for s in stables %}
+        <tr>
+          <td>{{ s.name_ar }}</td>
+          <td dir="ltr" style="text-align:left;">/s/{{ s.slug }}</td>
+          <td>{{ s.horses|length }}</td>
+          <td>{{ s.created_at.strftime('%Y-%m-%d') }}</td>
+          <td>
+            <a href="{{ url_for('stable_home', slug=s.slug) }}" class="btn btn-sm">عرض</a>
+            <a href="{{ url_for('platform_stable_edit', stable_id=s.id) }}" class="btn btn-sm">تعديل</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+  {% else %}
+  <div class="empty-state">لا توجد مرابط بعد. أنشئ أول مربط على المنصة.</div>
+  {% endif %}
+
+</div>
+{% endblock %}

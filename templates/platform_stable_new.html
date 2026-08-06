@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container" style="padding:40px 24px 90px;">
+  <a href="{{ url_for('platform_dashboard') }}" class="btn btn-sm">→ رجوع لكل المرابط</a>
+
+  <div class="form-card" style="max-width:600px; margin-top:24px;">
+    <h2>إنشاء مربط جديد</h2>
+    <div class="sub">أنشئ المربط وحساب مالكه الأول معًا</div>
+    <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="field">
+        <label>اسم المربط</label>
+        <input type="text" name="stable_name" required placeholder="مثال: مربط العز">
+      </div>
+      <div class="field">
+        <label>الرابط المختصر (أحرف إنجليزية صغيرة وأرقام وشرطات فقط)</label>
+        <input type="text" name="slug" required placeholder="al-ezz" dir="ltr" pattern="[a-z0-9\-]+">
+      </div>
+      <div class="field">
+        <label>المدينة (اختياري)</label>
+        <select name="city">
+          <option value="">— غير محدد —</option>
+          {% for c in cities %}
+          <option value="{{ c }}">{{ c }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="rail-divider"><span class="mark"></span></div>
+
+      <div class="field">
+        <label>اسم مالك المربط</label>
+        <input type="text" name="owner_name" required>
+      </div>
+      <div class="field">
+        <label>البريد الإلكتروني لمالك المربط</label>
+        <input type="email" name="owner_email" required>
+      </div>
+      <div class="field">
+        <label>كلمة مرور مؤقتة (8 أحرف على الأقل)</label>
+        <input type="text" name="owner_password" required minlength="8">
+      </div>
+
+      <button type="submit" class="btn btn-gold btn-block">إنشاء المربط والحساب</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

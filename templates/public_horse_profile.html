@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container" style="padding:40px 24px 90px;">
+  <div class="detail-layout">
+    <div>
+      {% if horse.photo_path %}
+        <img class="horse-photo detail-photo" src="{{ url_for('static', filename=horse.photo_path) }}" alt="{{ horse.name }}">
+      {% else %}
+        <div class="horse-photo placeholder detail-photo">{{ horse.name }}</div>
+      {% endif %}
+    </div>
+    <div>
+      <div class="eyebrow" style="color:var(--gold); font-size:.8rem; letter-spacing:2px;">{{ horse.stable.name_ar }}</div>
+      <h1 style="margin:6px 0 14px;">{{ horse.name }}</h1>
+      <p style="color:var(--muted);">{{ horse.breed or "عربي أصيل" }} · {{ horse.color or "" }}</p>
+      {% if horse.average_rating %}
+        <div class="rating-stars" style="font-size:1.3rem; margin:14px 0;">★ {{ horse.average_rating }} / 5 <span style="color:var(--muted); font-size:.85rem;">({{ horse.reviews|length }} تقييم)</span></div>
+      {% endif %}
+      {% if horse.notes %}<p style="color:var(--muted);">{{ horse.notes }}</p>{% endif %}
+
+      <a href="{{ url_for('stable_book', slug=horse.stable.slug) }}" class="btn btn-gold" style="margin-top:10px;">احجز حصة مع {{ horse.name }}</a>
+
+      {% if horse.reviews %}
+      <div class="rail-divider"><span class="mark"></span></div>
+      <h3>آراء الزوار</h3>
+      {% for r in horse.reviews %}
+      <div class="log-entry">
+        <div class="rating-stars">★ {{ r.rating }} / 5</div>
+        {% if r.comment %}<p style="color:var(--muted); margin:6px 0 0;">{{ r.comment }}</p>{% endif %}
+      </div>
+      {% endfor %}
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

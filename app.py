@@ -1,0 +1,1125 @@
+# -*- coding: utf-8 -*-
+import logging
+import os
+import sys
+import uuid
+from datetime import date, datetime, timezone, timedelta
+from functools import wraps
+
+from flask import (Flask, render_template, request, redirect, url_for,
+                    session, flash, abort, send_from_directory, jsonify, send_file)
+from dotenv import load_dotenv
+load_dotenv()
+
+from flask_migrate import Migrate
+from flask_wtf import CSRFProtect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from werkzeug.middleware.proxy_fix import ProxyFix
+from PIL import Image, UnidentifiedImageError
+
+from config import Config
+from models import db, Stable, User, Horse, DailyLog, DailyTask, Package, Booking, Review, Achievement, GalleryPhoto
+from pdf_reports import build_daily_report_pdf, build_invoice_pdf
+
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+UPLOAD_DIR = os.path.join(BASE_DIR, "static", "uploads")
+
+app = Flask(__name__)
+app.config.from_object(Config)
+
+# التطبيق يعمل خلف Proxy (Render/Nginx) — ضروري كي يعرف Flask أن الطلب أصلًا HTTPS
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
+# رفض بدء التطبيق في الإنتاج بدون SECRET_KEY حقيقي — خطأ شائع وخطير أن يُنسى
+if not app.config["DEBUG"] and not app.config["SECRET_KEY"]:
+    sys.exit("خطأ إعداد حرج: يجب ضبط متغير البيئة SECRET_KEY قبل تشغيل التطبيق في الإنتاج.")
+if app.config["DEBUG"] and not app.config["SECRET_KEY"]:
+    app.config["SECRET_KEY"] = "dev-only-not-secure-change-me"
+
+db.init_app(app)
+migrate = Migrate(app, db)
+csrf = CSRFProtect(app)
+limiter = Limiter(get_remote_address, app=app, storage_uri=app.config["RATELIMIT_STORAGE_URI"],
+                   default_limits=["200 per hour"])
+
+# ---------------------------------------------------------------- السجلات (Logging)
+logging.basicConfig(
+    level=logging.INFO if not app.config["DEBUG"] else logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    stream=sys.stdout,
+)
+app.logger.setLevel(logging.INFO)
+
+
+# ---------------------------------------------------------------- أدوات مساعدة للرفع الآمن
+def allowed_ext(filename):
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in app.config["ALLOWED_IMAGE_EXT"]
+
+
+def save_photo(file_storage, subfolder):
+    """يحفظ صورة مرفوعة بعد التحقق الفعلي من أنها صورة صالحة (وليس مجرد امتداد الملف)،
+    مع اسم ملف عشوائي آمن لمنع تخمين المسارات أو تعارض الأسماء."""
+    if not file_storage or file_storage.filename == "":
+        return None
+    if not allowed_ext(file_storage.filename):
+        flash("صيغة الصورة غير مدعومة (يُسمح فقط بـ JPG, PNG, WEBP)", "error")
+        return None
+
+    ext = file_storage.filename.rsplit(".", 1)[1].lower()
+    try:
+        # تحقق فعلي من محتوى الملف (وليس فقط امتداده) لمنع رفع ملفات ضارة متنكرة كصور
+        file_storage.stream.seek(0)
+        img = Image.open(file_storage.stream)
+        img.verify()
+        file_storage.stream.seek(0)
+    except (UnidentifiedImageError, OSError, ValueError):
+        flash("الملف المرفوع ليس صورة صالحة", "error")
+        return None
+
+    folder = os.path.join(UPLOAD_DIR, subfolder)
+    os.makedirs(folder, exist_ok=True)
+    fname = f"{uuid.uuid4().hex}.{ext}"
+    file_storage.save(os.path.join(folder, fname))
+    return f"uploads/{subfolder}/{fname}"
+
+
+def current_user():
+    uid = session.get("user_id")
+    if not uid:
+        return None
+    return db.session.get(User, uid)
+
+
+def login_required(*roles):
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            user = current_user()
+            if not user:
+                flash("الرجاء تسجيل الدخول للمتابعة", "error")
+                return redirect(url_for("login"))
+            if roles and user.role not in roles:
+                abort(403)
+            return fn(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+@app.context_processor
+def inject_globals():
+    nav_stable = None
+    if request.view_args and "slug" in request.view_args:
+        nav_stable = Stable.query.filter_by(slug=request.view_args["slug"]).first()
+    return {"current_user": current_user(), "today": date.today(), "nav_stable": nav_stable}
+
+
+# ---------------------------------------------------------------- ترويسات أمنية على كل استجابة
+CSP_POLICY = (
+    "default-src 'self'; "
+    "img-src 'self'; "
+    "font-src 'self' https://fonts.gstatic.com; "
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "  # 'unsafe-inline' ضروري لأن القوالب تستخدم style="" مباشرة على العناصر
+    "script-src 'self'; "  # لا يوجد أي <script> مضمّن أو خارجي بالمشروع حاليًا
+    "connect-src 'self'; "
+    "object-src 'none'; "
+    "base-uri 'self'; "
+    "form-action 'self'; "
+    "frame-ancestors 'none'"
+)
+
+
+@app.after_request
+def set_security_headers(response):
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    response.headers["Content-Security-Policy"] = CSP_POLICY
+    if not app.config["DEBUG"]:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
+
+
+@app.route("/static/uploads/<path:filename>")
+def uploaded_file(filename):
+    return send_from_directory(UPLOAD_DIR, filename, max_age=86400)
+
+
+@app.route("/healthz")
+def healthz():
+    """فحص صحة بسيط تستخدمه منصة الاستضافة للتأكد أن التطبيق وقاعدة البيانات يعملان."""
+    try:
+        db.session.execute(db.select(1))
+        return jsonify(status="ok"), 200
+    except Exception:
+        app.logger.exception("فشل فحص الصحة")
+        return jsonify(status="error"), 503
+
+
+# ---------------------------------------------------------------- معالجات الأخطاء
+@app.errorhandler(403)
+def forbidden(e):
+    return render_template("errors/403.html"), 403
+
+
+@app.errorhandler(404)
+def not_found(e):
+    return render_template("errors/404.html"), 404
+
+
+@app.errorhandler(413)
+def too_large(e):
+    flash("حجم الملف كبير جدًا (الحد الأقصى 8 ميغابايت)", "error")
+    return redirect(request.referrer or url_for("home")), 413
+
+
+@app.errorhandler(500)
+def server_error(e):
+    app.logger.exception("خطأ داخلي غير متوقع")
+    return render_template("errors/500.html"), 500
+
+
+# ---------------------------------------------------------------- الصفحة الرئيسية للمنصة
+@app.route("/")
+def home():
+    city_filter = request.args.get("city", "").strip()
+    query = Stable.query
+    if city_filter and city_filter in Stable.CITIES:
+        query = query.filter_by(city=city_filter)
+    stables = query.order_by(Stable.name_ar).all()
+
+    cities_in_use = sorted({s.city for s in Stable.query.filter(Stable.city.isnot(None)).all()})
+    return render_template("platform_home.html", stables=stables,
+                            cities_in_use=cities_in_use, selected_city=city_filter)
+
+
+# ---------------------------------------------------------------- الصفحة الرئيسية لمربط محدد
+@app.route("/s/<slug>")
+def stable_home(slug):
+    stable = Stable.query.filter_by(slug=slug).first_or_404()
+    packages = Package.query.filter_by(stable_id=stable.id, is_active=True).all()
+    featured_horses = Horse.query.filter_by(stable_id=stable.id).limit(4).all()
+    gallery_preview = GalleryPhoto.query.filter_by(stable_id=stable.id).order_by(
+        GalleryPhoto.created_at.desc()).limit(4).all()
+    return render_template("home.html", stable=stable, packages=packages, horses=featured_horses,
+                            gallery_preview=gallery_preview)
+
+
+# ---------------------------------------------------------------- تسجيل الدخول / الخروج
+@app.route("/login", methods=["GET", "POST"])
+@limiter.limit("10 per minute", methods=["POST"])
+def login():
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        password = request.form.get("password", "")
+        user = User.query.filter_by(email=email).first()
+        # رسالة خطأ موحّدة سواء كان البريد غير موجود أو كلمة المرور خاطئة — لمنع تخمين البريد المسجّل
+        if user and user.check_password(password):
+            session.clear()
+            session["user_id"] = user.id
+            session.permanent = True
+            flash(f"أهلًا بك، {user.name}", "success")
+            if user.role == User.ROLE_SUPER_ADMIN:
+                return redirect(url_for("platform_dashboard"))
+            elif user.role == User.ROLE_STABLE_OWNER or user.role == User.ROLE_STAFF:
+                return redirect(url_for("admin_dashboard"))
+            elif user.role == User.ROLE_HORSE_OWNER:
+                return redirect(url_for("owner_dashboard"))
+            elif user.stable_id:
+                stable = db.session.get(Stable, user.stable_id)
+                return redirect(url_for("stable_home", slug=stable.slug) if stable else url_for("home"))
+            return redirect(url_for("home"))
+        flash("البريد الإلكتروني أو كلمة المرور غير صحيحة", "error")
+    return render_template("login.html")
+
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    session.clear()
+    flash("تم تسجيل الخروج بنجاح", "success")
+    return redirect(url_for("home"))
+
+
+@app.route("/s/<slug>/register", methods=["GET", "POST"])
+@limiter.limit("10 per minute", methods=["POST"])
+def stable_register(slug):
+    """تسجيل زائر جديد يريد حجز حصص ركوب/تدريب في مربط محدد."""
+    stable = Stable.query.filter_by(slug=slug).first_or_404()
+
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        email = request.form.get("email", "").strip().lower()
+        phone = request.form.get("phone", "").strip()
+        password = request.form.get("password", "")
+
+        if not all([name, email, password]):
+            flash("الرجاء تعبئة جميع الحقول المطلوبة", "error")
+            return render_template("register.html", stable=stable)
+        if len(password) < 8:
+            flash("يجب ألا تقل كلمة المرور عن 8 أحرف", "error")
+            return render_template("register.html", stable=stable)
+        if "@" not in email or "." not in email.split("@")[-1]:
+            flash("الرجاء إدخال بريد إلكتروني صحيح", "error")
+            return render_template("register.html", stable=stable)
+        if User.query.filter_by(email=email).first():
+            flash("هذا البريد الإلكتروني مسجّل مسبقًا", "error")
+            return render_template("register.html", stable=stable)
+
+        user = User(name=name, email=email, phone=phone,
+                    role=User.ROLE_VISITOR, stable_id=stable.id)
+        user.set_password(password)
+        db.session.add(user)
+        db.session.commit()
+        session.clear()
+        session["user_id"] = user.id
+        session.permanent = True
+        flash("تم إنشاء حسابك بنجاح، يمكنك الآن حجز حصتك", "success")
+        return redirect(url_for("stable_book", slug=stable.slug))
+
+    return render_template("register.html", stable=stable)
+
+
+# ---------------------------------------------------------------- لوحة مالك الإسطبل
+@app.route("/admin")
+@login_required(User.ROLE_STABLE_OWNER, User.ROLE_SUPER_ADMIN, User.ROLE_STAFF)
+def admin_dashboard():
+    user = current_user()
+    horses = Horse.query.filter_by(stable_id=user.stable_id).order_by(Horse.name).all()
+    pending_bookings = (Booking.query.filter_by(stable_id=user.stable_id, status="pending")
+                         .order_by(Booking.created_at.desc()).limit(50).all())
+
+    today = date.today()
+    total_tasks = 0
+    done_tasks = 0
+    for h in horses:
+        day_tasks = get_or_create_tasks_for_day(h, today)
+        total_tasks += len(day_tasks)
+        done_tasks += sum(1 for t in day_tasks if t.status == DailyTask.STATUS_DONE)
+    completion_pct = round(done_tasks / total_tasks * 100) if total_tasks else 0
+
+    return render_template("admin_dashboard.html", horses=horses, bookings=pending_bookings,
+                            done_tasks=done_tasks, total_tasks=total_tasks, completion_pct=completion_pct)
+
+
+@app.route("/admin/stable/edit", methods=["GET", "POST"])
+@login_required(User.ROLE_STABLE_OWNER, User.ROLE_SUPER_ADMIN)
+def admin_stable_edit():
+    user = current_user()
+    stable = db.get_or_404(Stable, user.stable_id)
+
+    if request.method == "POST":
+        name = request.form.get("stable_name", "").strip()
+        if not name:
+            flash("اسم المربط مطلوب", "error")
+            return render_template("admin_stable_edit.html", stable=stable, cities=Stable.CITIES)
+
+        stable.name_ar = name
+        stable.description = request.form.get("description", "").strip()[:2000]
+        city, location, latitude, longitude = parse_stable_location_fields(request.form)
+        stable.city = city
+        stable.location = location
+        stable.latitude = latitude
+        stable.longitude = longitude
+        db.session.commit()
+        flash("تم تحديث بيانات المربط", "success")
+        return redirect(url_for("admin_dashboard"))
+
+    return render_template("admin_stable_edit.html", stable=stable, cities=Stable.CITIES)
+
+
+def get_or_create_tasks_for_day(horse, day):
+    """يضمن وجود صف مهمة لكل نوع من الأنواع الاثنتي عشرة الثابتة لهذا الحصان في هذا اليوم،
+    وينشئ الناقص منها تلقائيًا (بحالة 'بانتظار التنفيذ'). يُرجع القائمة مرتبة بترتيب اليوم الثابت."""
+    existing = {t.task_type: t for t in DailyTask.query.filter_by(horse_id=horse.id, task_date=day).all()}
+    created = False
+    for task_type, _ in DailyTask.TASK_TYPES:
+        if task_type not in existing:
+            t = DailyTask(horse_id=horse.id, task_date=day, task_type=task_type)
+            db.session.add(t)
+            existing[task_type] = t
+            created = True
+    if created:
+        db.session.commit()
+    return [existing[task_type] for task_type, _ in DailyTask.TASK_TYPES]
+
+
+def submit_achievement(horse, user):
+    """يتحقق من مدخلات نموذج الإنجاز وينشئه بحالة 'بانتظار المراجعة'.
+    يُرجع (achievement_or_None, error_message_or_None)."""
+    title = request.form.get("title", "").strip()
+    if not title:
+        return None, "عنوان الإنجاز مطلوب"
+
+    competition_name = request.form.get("competition_name", "").strip()[:200]
+    description = request.form.get("description", "").strip()[:2000]
+
+    date_raw = request.form.get("achievement_date")
+    achievement_date = None
+    if date_raw:
+        try:
+            achievement_date = datetime.strptime(date_raw, "%Y-%m-%d").date()
+        except ValueError:
+            achievement_date = None
+
+    photo_path = save_photo(request.files.get("photo"), f"achievements/{horse.id}")
+
+    achievement = Achievement(
+        horse_id=horse.id,
+        stable_id=horse.stable_id,
+        submitted_by=user.id,
+        title=title[:200],
+        competition_name=competition_name,
+        achievement_date=achievement_date,
+        description=description,
+        photo_path=photo_path,
+        status=Achievement.STATUS_PENDING,
+    )
+    db.session.add(achievement)
+    db.session.commit()
+    app.logger.info("achievement_submitted id=%s horse_id=%s by user_id=%s",
+                     achievement.id, horse.id, user.id)
+    return achievement, None
+
+
+@app.route("/admin/horse/<int:horse_id>")
+@login_required(User.ROLE_STABLE_OWNER, User.ROLE_SUPER_ADMIN, User.ROLE_STAFF)
+def admin_horse_detail(horse_id):
+    user = current_user()
+    horse = Horse.query.filter_by(id=horse_id, stable_id=user.stable_id).first_or_404()
+    return render_template("admin_horse_detail.html", horse=horse)
+
+
+@app.route("/admin/horse/<int:horse_id>/achievements/new", methods=["GET", "POST"])
+@login_required(User.ROLE_STABLE_OWNER, User.ROLE_SUPER_ADMIN)
+def admin_achievement_new(horse_id):
+    user = current_user()
+    horse = Horse.query.filter_by(id=horse_id, stable_id=user.stable_id).first_or_404()
+
+    if request.method == "POST":
+        achievement, error = submit_achievement(horse, user)
+        if error:
+            flash(error, "error")
+            return render_template("achievement_new.html", horse=horse, back_url=url_for("admin_horse_detail", horse_id=horse.id))
+        flash("تم إرسال الإنجاز — بانتظار موافقة مشرف المنصة قبل ظهوره في Lounge", "success")
+        return redirect(url_for("admin_horse_detail", horse_id=horse.id))
+
+    return render_template("achievement_new.html", horse=horse, back_url=url_for("admin_horse_detail", horse_id=horse.id))
+
+
+@app.route("/admin/horse/<int:horse_id>/tasks")
+@login_required(User.ROLE_STABLE_OWNER, User.ROLE_SUPER_ADMIN, User.ROLE_STAFF)
+def admin_horse_tasks(horse_id):
+    user = current_user()
+    horse = Horse.query.filter_by(id=horse_id, stable_id=user.stable_id).first_or_404()
+
+    date_raw = request.args.get("date")
+    try:
+        day = datetime.strptime(date_raw, "%Y-%m-%d").date() if date_raw else date.today()
+    except ValueError:
+        day = date.today()
+
+    tasks = get_or_create_tasks_for_day(horse, day)
+    done_count = sum(1 for t in tasks if t.status == DailyTask.STATUS_DONE)
+    staff_members = User.query.filter_by(stable_id=user.stable_id, role=User.ROLE_STAFF).order_by(User.name).all()
+    return render_template("admin_horse_tasks.html", horse=horse, tasks=tasks, day=day,
+                            done_count=done_count, total_count=len(tasks),
+                            prev_day=day - timedelta(days=1), next_day=day + timedelta(days=1),
+                            today=date.today(), staff_members=staff_members)
+
+
+@app.route("/admin/horse/<int:horse_id>/tasks/report")
+@login_required(User.ROLE_STABLE_OWNER, User.ROLE_SUPER_ADMIN, User.ROLE_STAFF)
+def admin_horse_report(horse_id):
+    user = current_user()
+    horse = Horse.query.filter_by(id=horse_id, stable_id=user.stable_id).first_or_404()
+
+    date_raw = request.args.get("date")
+    try:
+        day = datetime.strptime(date_raw, "%Y-%m-%d").date() if date_raw else date.today()
+    except ValueError:
+        day = date.today()
+
+    tasks = get_or_create_tasks_for_day(horse, day)
+    stable = db.session.get(Stable, user.stable_id)
+    pdf_buf = build_daily_report_pdf(stable, horse, day, tasks)
+    filename = f"تقرير-{horse.name}-{day.isoformat()}.pdf"
+    return send_file(pdf_buf, mimetype="application/pdf", as_attachment=True, download_name=filename)
+
+
+@app.route("/admin/tasks/<int:task_id>/update", methods=["POST"])
+@login_required(User.ROLE_STABLE_OWNER, User.ROLE_SUPER_ADMIN, User.ROLE_STAFF)
+def admin_task_update(task_id):
+    user = current_user()
+    task = db.get_or_404(DailyTask, task_id)
+    if task.horse.stable_id != user.stable_id:
+        abort(403)
+
+    new_status = request.form.get("status")
+    if new_status not in (DailyTask.STATUS_PENDING, DailyTask.STATUS_DONE, DailyTask.STATUS_SKIPPED):
+        new_status = task.status
+    task.status = new_status
+
+    # التكليف الآن عبر حساب موظف فعلي بدل النص الحر — نتحقق أن الموظف المختار فعلًا من نفس المربط
+    assigned_to_id_raw = request.form.get("assigned_to_id")
+    if assigned_to_id_raw is not None:
+        if assigned_to_id_raw == "":
+            task.assigned_to_id = None
+        else:
+            try:
+                staff_id = int(assigned_to_id_raw)
+            except ValueError:
+                staff_id = None
+            if staff_id is not None:
+                staff = User.query.filter_by(id=staff_id, stable_id=user.stable_id,
+                                              role=User.ROLE_STAFF).first()
+                if staff:
+                    task.assigned_to_id = staff.id
+
+    task.notes = request.form.get("notes", "").strip()[:2000]
+
+    photo_path = save_photo(request.files.get("photo"), f"tasks/{task.horse_id}")
+    if photo_path:
+        task.photo_path = photo_path
+
+    if new_status == DailyTask.STATUS_DONE:
+        task.completed_by = user.id
+        task.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    else:
+        task.completed_by = None
+        task.completed_at = None
+
+    db.session.commit()
+    app.logger.info("task_updated id=%s status=%s by user_id=%s", task.id, task.status, user.id)
+
+    redirect_date = request.form.get("redirect_date") or task.task_date.isoformat()
+    return redirect(url_for("admin_horse_tasks", horse_id=task.horse_id, date=redirect_date))
+
+
+@app.route("/admin/horse/new", methods=["GET", "POST"])
+@login_required(User.ROLE_STABLE_OWNER, User.ROLE_SUPER_ADMIN)
+def admin_horse_new():
+    user = current_user()
+    horse_owners = User.query.filter_by(stable_id=user.stable_id, role=User.ROLE_HORSE_OWNER).all()
+
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        if not name:
+            flash("اسم الحصان مطلوب", "error")
+            return render_template("admin_horse_new.html", horse_owners=horse_owners)
+
+        photo_path = save_photo(request.files.get("photo"), "horses/new")
+        owner_id = request.form.get("owner_id") or None
+        # تأكد أن المالك المُختار فعلًا تابع لنفس الإسطبل (منع تسريب بيانات بين المرابط)
+        if owner_id:
+            owner = User.query.filter_by(id=int(owner_id), stable_id=user.stable_id,
+                                          role=User.ROLE_HORSE_OWNER).first()
+            owner_id = owner.id if owner else None
+
+        birth_year_raw = request.form.get("birth_year")
+        birth_year = None
+        if birth_year_raw and birth_year_raw.isdigit():
+            birth_year = int(birth_year_raw)
+
+        horse = Horse(
+            stable_id=user.stable_id,
+            owner_id=owner_id,
+            name=name,
+            breed=request.form.get("breed", "").strip()[:100],
+            color=request.form.get("color", "").strip()[:50],
+            birth_year=birth_year,
+            service_type=request.form.get("service_type", "boarding"),
+            notes=request.form.get("notes", "").strip()[:2000],
+            photo_path=photo_path,
+        )
+        db.session.add(horse)
+        db.session.commit()
+        app.logger.info("horse_created id=%s by user_id=%s", horse.id, user.id)
+        flash(f"تمت إضافة الحصان «{horse.name}» بنجاح", "success")
+        return redirect(url_for("admin_dashboard"))
+
+    return render_template("admin_horse_new.html", horse_owners=horse_owners)
+
+
+MAX_GALLERY_PHOTOS = 30
+
+
+@app.route("/admin/gallery", methods=["GET", "POST"])
+@login_required(User.ROLE_STABLE_OWNER, User.ROLE_SUPER_ADMIN)
+def admin_gallery():
+    user = current_user()
+    photos = GalleryPhoto.query.filter_by(stable_id=user.stable_id).order_by(
+        GalleryPhoto.created_at.desc()).all()
+
+    if request.method == "POST":
+        if len(photos) >= MAX_GALLERY_PHOTOS:
+            flash(f"وصلت الحد الأقصى لعدد الصور ({MAX_GALLERY_PHOTOS} صورة) — احذف صورة قديمة أولًا لإضافة جديدة", "error")
+            return redirect(url_for("admin_gallery"))
+
+        photo_path = save_photo(request.files.get("photo"), f"gallery/{user.stable_id}")
+        if not photo_path:
+            flash("الرجاء اختيار صورة صالحة", "error")
+            return redirect(url_for("admin_gallery"))
+
+        photo = GalleryPhoto(
+            stable_id=user.stable_id,
+            photo_path=photo_path,
+            caption=request.form.get("caption", "").strip()[:200],
+            uploaded_by=user.id,
+        )
+        db.session.add(photo)
+        db.session.commit()
+        app.logger.info("gallery_photo_added id=%s stable_id=%s by user_id=%s",
+                         photo.id, user.stable_id, user.id)
+        flash("تمت إضافة الصورة لمعرض المربط", "success")
+        return redirect(url_for("admin_gallery"))
+
+    return render_template("admin_gallery.html", photos=photos, max_photos=MAX_GALLERY_PHOTOS)
+
+
+@app.route("/admin/gallery/<int:photo_id>/delete", methods=["POST"])
+@login_required(User.ROLE_STABLE_OWNER, User.ROLE_SUPER_ADMIN)
+def admin_gallery_delete(photo_id):
+    user = current_user()
+    # first_or_404 مقيّد بـ stable_id يمنع أي مربط من حذف صور مربط آخر
+    photo = GalleryPhoto.query.filter_by(id=photo_id, stable_id=user.stable_id).first_or_404()
+    db.session.delete(photo)
+    db.session.commit()
+    app.logger.info("gallery_photo_deleted id=%s by user_id=%s", photo_id, user.id)
+    flash("تم حذف الصورة", "success")
+    return redirect(url_for("admin_gallery"))
+
+
+@app.route("/admin/owners")
+@login_required(User.ROLE_STABLE_OWNER, User.ROLE_SUPER_ADMIN)
+def admin_owners():
+    user = current_user()
+    owners = (User.query.filter_by(stable_id=user.stable_id, role=User.ROLE_HORSE_OWNER)
+              .order_by(User.name).all())
+    return render_template("admin_owners.html", owners=owners)
+
+
+@app.route("/admin/owners/new", methods=["GET", "POST"])
+@login_required(User.ROLE_STABLE_OWNER, User.ROLE_SUPER_ADMIN)
+def admin_owner_new():
+    user = current_user()
+
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        email = request.form.get("email", "").strip().lower()
+        phone = request.form.get("phone", "").strip()
+        password = request.form.get("password", "")
+
+        if not all([name, email, password]):
+            flash("الرجاء تعبئة الاسم والبريد وكلمة المرور", "error")
+            return render_template("admin_owner_new.html")
+        if len(password) < 8:
+            flash("يجب ألا تقل كلمة المرور عن 8 أحرف", "error")
+            return render_template("admin_owner_new.html")
+        if "@" not in email or "." not in email.split("@")[-1]:
+            flash("الرجاء إدخال بريد إلكتروني صحيح", "error")
+            return render_template("admin_owner_new.html")
+        if User.query.filter_by(email=email).first():
+            flash("هذا البريد الإلكتروني مسجّل مسبقًا لحساب آخر", "error")
+            return render_template("admin_owner_new.html")
+
+        owner = User(name=name, email=email, phone=phone,
+                     stable_id=user.stable_id, role=User.ROLE_HORSE_OWNER)
+        owner.set_password(password)
+        db.session.add(owner)
+        db.session.commit()
+        app.logger.info("horse_owner_created id=%s by user_id=%s", owner.id, user.id)
+        flash(f"تم إنشاء حساب «{owner.name}» بنجاح — شارِكه ببريده وكلمة المرور ليسجّل دخوله", "success")
+        return redirect(url_for("admin_owners"))
+
+    return render_template("admin_owner_new.html")
+
+
+@app.route("/admin/staff")
+@login_required(User.ROLE_STABLE_OWNER, User.ROLE_SUPER_ADMIN)
+def admin_staff():
+    user = current_user()
+    staff = (User.query.filter_by(stable_id=user.stable_id, role=User.ROLE_STAFF)
+             .order_by(User.name).all())
+    return render_template("admin_staff.html", staff=staff)
+
+
+@app.route("/admin/staff/new", methods=["GET", "POST"])
+@login_required(User.ROLE_STABLE_OWNER, User.ROLE_SUPER_ADMIN)
+def admin_staff_new():
+    user = current_user()
+
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        email = request.form.get("email", "").strip().lower()
+        phone = request.form.get("phone", "").strip()
+        password = request.form.get("password", "")
+        specialty = request.form.get("specialty", "").strip()
+
+        if not all([name, email, password]):
+            flash("الرجاء تعبئة الاسم والبريد وكلمة المرور", "error")
+            return render_template("admin_staff_new.html", specialties=User.SPECIALTIES)
+        if len(password) < 8:
+            flash("يجب ألا تقل كلمة المرور عن 8 أحرف", "error")
+            return render_template("admin_staff_new.html", specialties=User.SPECIALTIES)
+        if "@" not in email or "." not in email.split("@")[-1]:
+            flash("الرجاء إدخال بريد إلكتروني صحيح", "error")
+            return render_template("admin_staff_new.html", specialties=User.SPECIALTIES)
+        if User.query.filter_by(email=email).first():
+            flash("هذا البريد الإلكتروني مسجّل مسبقًا لحساب آخر", "error")
+            return render_template("admin_staff_new.html", specialties=User.SPECIALTIES)
+        if specialty and specialty not in User.SPECIALTIES:
+            specialty = None
+
+        staff = User(name=name, email=email, phone=phone, specialty=specialty,
+                     stable_id=user.stable_id, role=User.ROLE_STAFF)
+        staff.set_password(password)
+        db.session.add(staff)
+        db.session.commit()
+        app.logger.info("staff_created id=%s by user_id=%s", staff.id, user.id)
+        flash(f"تم إنشاء حساب «{staff.name}» بنجاح — شارِكه ببريده وكلمة المرور ليسجّل دخوله", "success")
+        return redirect(url_for("admin_staff"))
+
+    return render_template("admin_staff_new.html", specialties=User.SPECIALTIES)
+
+
+@app.route("/admin/bookings/<int:booking_id>/confirm", methods=["POST"])
+@login_required(User.ROLE_STABLE_OWNER, User.ROLE_SUPER_ADMIN)
+def admin_confirm_booking(booking_id):
+    user = current_user()
+    booking = Booking.query.filter_by(id=booking_id, stable_id=user.stable_id).first_or_404()
+    booking.status = Booking.STATUS_CONFIRMED
+    db.session.commit()
+    flash("تم تأكيد الحجز", "success")
+    return redirect(url_for("admin_dashboard"))
+
+
+# ---------------------------------------------------------------- لوحة مالك الخيل (الزبون المُودِع)
+@app.route("/owner")
+@login_required(User.ROLE_HORSE_OWNER)
+def owner_dashboard():
+    user = current_user()
+    horses = Horse.query.filter_by(owner_id=user.id).all()
+    return render_template("owner_dashboard.html", horses=horses)
+
+
+@app.route("/owner/horse/<int:horse_id>")
+@login_required(User.ROLE_HORSE_OWNER)
+def owner_horse_detail(horse_id):
+    user = current_user()
+    horse = Horse.query.filter_by(id=horse_id, owner_id=user.id).first_or_404()
+    return render_template("owner_horse_detail.html", horse=horse)
+
+
+@app.route("/owner/horse/<int:horse_id>/achievements/new", methods=["GET", "POST"])
+@login_required(User.ROLE_HORSE_OWNER)
+def owner_achievement_new(horse_id):
+    user = current_user()
+    horse = Horse.query.filter_by(id=horse_id, owner_id=user.id).first_or_404()
+
+    if request.method == "POST":
+        achievement, error = submit_achievement(horse, user)
+        if error:
+            flash(error, "error")
+            return render_template("achievement_new.html", horse=horse, back_url=url_for("owner_horse_detail", horse_id=horse.id))
+        flash("تم إرسال الإنجاز — بانتظار موافقة مشرف المنصة قبل ظهوره في Lounge", "success")
+        return redirect(url_for("owner_horse_detail", horse_id=horse.id))
+
+    return render_template("achievement_new.html", horse=horse, back_url=url_for("owner_horse_detail", horse_id=horse.id))
+
+
+@app.route("/owner/horse/<int:horse_id>/tasks")
+@login_required(User.ROLE_HORSE_OWNER)
+def owner_horse_tasks(horse_id):
+    user = current_user()
+    horse = Horse.query.filter_by(id=horse_id, owner_id=user.id).first_or_404()
+
+    date_raw = request.args.get("date")
+    try:
+        day = datetime.strptime(date_raw, "%Y-%m-%d").date() if date_raw else date.today()
+    except ValueError:
+        day = date.today()
+
+    tasks = get_or_create_tasks_for_day(horse, day)
+    done_count = sum(1 for t in tasks if t.status == DailyTask.STATUS_DONE)
+    return render_template("owner_horse_tasks.html", horse=horse, tasks=tasks, day=day,
+                            done_count=done_count, total_count=len(tasks),
+                            prev_day=day - timedelta(days=1), next_day=day + timedelta(days=1),
+                            today=date.today())
+
+
+# ---------------------------------------------------------------- الحجز العام (للزوار)
+@app.route("/s/<slug>/book", methods=["GET", "POST"])
+def stable_book(slug):
+    stable = Stable.query.filter_by(slug=slug).first_or_404()
+    packages = Package.query.filter_by(stable_id=stable.id, is_active=True).all()
+    rideable_horses = Horse.query.filter(
+        Horse.stable_id == stable.id,
+        Horse.service_type.in_(["training", "rental"])
+    ).all()
+
+    if request.method == "POST":
+        user = current_user()
+        if not user:
+            flash("الرجاء تسجيل الدخول أو إنشاء حساب أولًا لإتمام الحجز", "error")
+            return redirect(url_for("stable_register", slug=stable.slug))
+        # أمان أساسي في منصة متعددة المرابط: يمنع حجز زائر مسجّل في مربط آخر هنا
+        if user.stable_id != stable.id:
+            flash("هذا الحساب مسجّل في مربط مختلف — سجّل حسابًا جديدًا خاصًا بهذا المربط", "error")
+            return redirect(url_for("stable_home", slug=stable.slug))
+
+        package = Package.query.filter_by(id=request.form.get("package_id"),
+                                           stable_id=stable.id, is_active=True).first()
+        if not package:
+            flash("الباقة المختارة غير متاحة", "error")
+            return redirect(url_for("stable_book", slug=stable.slug))
+
+        horse_id = request.form.get("horse_id") or None
+        if horse_id:
+            # تأكد أن الحصان فعلًا من نفس الإسطبل ومتاح للحجز
+            valid_horse = Horse.query.filter(
+                Horse.id == int(horse_id), Horse.stable_id == stable.id,
+                Horse.service_type.in_(["training", "rental"])
+            ).first()
+            horse_id = valid_horse.id if valid_horse else None
+
+        session_date_raw = request.form.get("session_date")
+        session_date = None
+        if session_date_raw:
+            try:
+                session_date = datetime.strptime(session_date_raw, "%Y-%m-%d").date()
+            except ValueError:
+                session_date = None
+
+        booking = Booking(
+            stable_id=stable.id,
+            visitor_id=user.id,
+            package_id=package.id,
+            horse_id=horse_id,
+            session_date=session_date,
+            sessions_remaining=package.session_count,
+            amount=package.price,
+            status=Booking.STATUS_PENDING,
+            payment_status="unpaid",
+        )
+        db.session.add(booking)
+        db.session.commit()
+        app.logger.info("booking_created id=%s visitor_id=%s package_id=%s", booking.id, user.id, package.id)
+        return redirect(url_for("checkout", booking_id=booking.id))
+
+    return render_template("book.html", stable=stable, packages=packages, horses=rideable_horses)
+
+
+@app.route("/checkout/<int:booking_id>", methods=["GET", "POST"])
+def checkout(booking_id):
+    user = current_user()
+    booking = db.get_or_404(Booking, booking_id)
+    # لا يجوز لأي زائر آخر رؤية أو دفع حجز ليس له
+    if not user or booking.visitor_id != user.id:
+        abort(403)
+    if booking.payment_status == "paid":
+        return redirect(url_for("booking_success", booking_id=booking.id))
+
+    if not app.config["SIMULATED_PAYMENTS_ENABLED"]:
+        return render_template("payment_unavailable.html", booking=booking), 503
+
+    if request.method == "POST":
+        # محاكاة بوابة دفع (Mada / Apple Pay / Visa) — يُستبدل لاحقًا ببوابة حقيقية مثل Moyasar أو HyperPay
+        booking.payment_status = "paid"
+        booking.payment_ref = f"SIM-{uuid.uuid4().hex[:12]}"
+        booking.status = Booking.STATUS_CONFIRMED
+        db.session.commit()
+        app.logger.info("booking_paid id=%s", booking.id)
+        return redirect(url_for("booking_success", booking_id=booking.id))
+    return render_template("checkout.html", booking=booking)
+
+
+@app.route("/booking/<int:booking_id>/success")
+def booking_success(booking_id):
+    user = current_user()
+    booking = db.get_or_404(Booking, booking_id)
+    if not user or booking.visitor_id != user.id:
+        abort(403)
+    return render_template("booking_success.html", booking=booking)
+
+
+@app.route("/booking/<int:booking_id>/invoice")
+def booking_invoice(booking_id):
+    user = current_user()
+    booking = db.get_or_404(Booking, booking_id)
+    if not user:
+        abort(403)
+    is_owner_visitor = booking.visitor_id == user.id
+    is_stable_staff = (user.stable_id == booking.stable_id and
+                        user.role in (User.ROLE_STABLE_OWNER, User.ROLE_SUPER_ADMIN, User.ROLE_STAFF))
+    if not (is_owner_visitor or is_stable_staff):
+        abort(403)
+
+    stable = db.session.get(Stable, booking.stable_id)
+    pdf_buf = build_invoice_pdf(stable, booking)
+    filename = f"فاتورة-{booking.id}.pdf"
+    return send_file(pdf_buf, mimetype="application/pdf", as_attachment=True, download_name=filename)
+
+
+@app.route("/review/<int:booking_id>", methods=["GET", "POST"])
+def leave_review(booking_id):
+    user = current_user()
+    booking = db.get_or_404(Booking, booking_id)
+    if not user or booking.visitor_id != user.id:
+        abort(403)
+    if booking.payment_status != "paid":
+        flash("لا يمكن تقييم حجز لم يُدفع بعد", "error")
+        return redirect(url_for("home"))
+    if Review.query.filter_by(booking_id=booking.id).first():
+        flash("سبق أن أرسلت تقييمًا لهذا الحجز", "error")
+        return redirect(url_for("home"))
+
+    if request.method == "POST":
+        def parse_rating(raw):
+            try:
+                val = int(raw)
+            except (TypeError, ValueError):
+                return None
+            return val if 1 <= val <= 5 else None
+
+        horse_rating = parse_rating(request.form.get("horse_rating"))
+        experience_rating = parse_rating(request.form.get("experience_rating"))
+        if horse_rating is None or experience_rating is None:
+            flash("الرجاء اختيار تقييم صحيح (من 1 إلى 5 نجوم)", "error")
+            return render_template("review.html", booking=booking)
+
+        review = Review(
+            booking_id=booking.id,
+            horse_id=booking.horse_id,
+            rating=horse_rating,
+            experience_rating=experience_rating,
+            comment=(request.form.get("comment") or "").strip()[:1000],
+        )
+        db.session.add(review)
+        db.session.commit()
+        flash("شكرًا لتقييمك، نتشرف بزيارتك القادمة", "success")
+        return redirect(url_for("home"))
+    return render_template("review.html", booking=booking)
+
+
+@app.route("/s/<slug>/horses/<int:horse_id>")
+def stable_horse_profile(slug, horse_id):
+    stable = Stable.query.filter_by(slug=slug).first_or_404()
+    horse = Horse.query.filter_by(id=horse_id, stable_id=stable.id).first_or_404()
+    return render_template("public_horse_profile.html", horse=horse)
+
+
+@app.route("/s/<slug>/gallery")
+def stable_gallery(slug):
+    stable = Stable.query.filter_by(slug=slug).first_or_404()
+    photos = GalleryPhoto.query.filter_by(stable_id=stable.id).order_by(
+        GalleryPhoto.created_at.desc()).all()
+    return render_template("stable_gallery.html", stable=stable, photos=photos)
+
+
+# ---------------------------------------------------------------- لوحة مشرف المنصة (تعدد المرابط)
+@app.route("/platform")
+@login_required(User.ROLE_SUPER_ADMIN)
+def platform_dashboard():
+    stables = Stable.query.order_by(Stable.name_ar).all()
+    return render_template("platform_dashboard.html", stables=stables)
+
+
+def parse_stable_location_fields(form):
+    """يتحقق من حقول المدينة والموقع والإحداثيات ويرجعها منظّفة. كلها اختيارية."""
+    city = form.get("city", "").strip()
+    if city and city not in Stable.CITIES:
+        city = None
+    location = form.get("location", "").strip()[:200]
+
+    lat_raw = form.get("latitude", "").strip()
+    lng_raw = form.get("longitude", "").strip()
+    latitude = longitude = None
+    if lat_raw and lng_raw:
+        try:
+            lat_val = float(lat_raw)
+            lng_val = float(lng_raw)
+            if -90 <= lat_val <= 90 and -180 <= lng_val <= 180:
+                latitude, longitude = lat_val, lng_val
+        except ValueError:
+            pass
+    return city, location, latitude, longitude
+
+
+@app.route("/platform/stables/new", methods=["GET", "POST"])
+@login_required(User.ROLE_SUPER_ADMIN)
+def platform_stable_new():
+    if request.method == "POST":
+        import re as _re
+
+        stable_name = request.form.get("stable_name", "").strip()
+        slug = request.form.get("slug", "").strip().lower()
+        owner_name = request.form.get("owner_name", "").strip()
+        owner_email = request.form.get("owner_email", "").strip().lower()
+        owner_password = request.form.get("owner_password", "")
+
+        if not all([stable_name, slug, owner_name, owner_email, owner_password]):
+            flash("الرجاء تعبئة جميع الحقول", "error")
+            return render_template("platform_stable_new.html", cities=Stable.CITIES)
+        if len(owner_password) < 8:
+            flash("يجب ألا تقل كلمة المرور عن 8 أحرف", "error")
+            return render_template("platform_stable_new.html", cities=Stable.CITIES)
+        if "@" not in owner_email or "." not in owner_email.split("@")[-1]:
+            flash("الرجاء إدخال بريد إلكتروني صحيح لمالك المربط", "error")
+            return render_template("platform_stable_new.html", cities=Stable.CITIES)
+        if not _re.fullmatch(r"[a-z0-9-]+", slug):
+            flash("الرابط المختصر يجب أن يحتوي أحرفًا إنجليزية صغيرة وأرقامًا وشرطات (-) فقط", "error")
+            return render_template("platform_stable_new.html", cities=Stable.CITIES)
+        if Stable.query.filter_by(slug=slug).first():
+            flash("هذا الرابط المختصر مستخدم لمربط آخر بالفعل", "error")
+            return render_template("platform_stable_new.html", cities=Stable.CITIES)
+        if User.query.filter_by(email=owner_email).first():
+            flash("هذا البريد الإلكتروني مسجّل مسبقًا لحساب آخر", "error")
+            return render_template("platform_stable_new.html", cities=Stable.CITIES)
+
+        city, location, latitude, longitude = parse_stable_location_fields(request.form)
+        stable = Stable(name_ar=stable_name, slug=slug, city=city, location=location,
+                         latitude=latitude, longitude=longitude)
+        db.session.add(stable)
+        db.session.commit()
+
+        owner = User(name=owner_name, email=owner_email, stable_id=stable.id,
+                     role=User.ROLE_STABLE_OWNER)
+        owner.set_password(owner_password)
+        db.session.add(owner)
+        db.session.commit()
+        app.logger.info("stable_created id=%s slug=%s by super_admin_id=%s",
+                         stable.id, stable.slug, current_user().id)
+        flash(f"تم إنشاء مربط «{stable_name}» وحساب مالكه بنجاح", "success")
+        return redirect(url_for("platform_dashboard"))
+
+    return render_template("platform_stable_new.html", cities=Stable.CITIES)
+
+
+@app.route("/platform/stables/<int:stable_id>/edit", methods=["GET", "POST"])
+@login_required(User.ROLE_SUPER_ADMIN)
+def platform_stable_edit(stable_id):
+    stable = db.get_or_404(Stable, stable_id)
+    if request.method == "POST":
+        name = request.form.get("stable_name", "").strip()
+        if not name:
+            flash("اسم المربط مطلوب", "error")
+            return render_template("platform_stable_edit.html", stable=stable, cities=Stable.CITIES)
+        stable.name_ar = name
+        city, location, latitude, longitude = parse_stable_location_fields(request.form)
+        stable.city = city
+        stable.location = location
+        stable.latitude = latitude
+        stable.longitude = longitude
+        db.session.commit()
+        flash("تم تحديث بيانات المربط", "success")
+        return redirect(url_for("platform_dashboard"))
+    return render_template("platform_stable_edit.html", stable=stable, cities=Stable.CITIES)
+
+
+# ---------------------------------------------------------------- Lounge (صفحة مشتركة لإنجازات الخيول)
+@app.route("/lounge")
+def lounge():
+    achievements = (Achievement.query.filter_by(status=Achievement.STATUS_APPROVED)
+                    .order_by(Achievement.achievement_date.desc().nullslast(),
+                              Achievement.created_at.desc())
+                    .limit(60).all())
+    return render_template("lounge.html", achievements=achievements)
+
+
+@app.route("/platform/lounge")
+@login_required(User.ROLE_SUPER_ADMIN)
+def platform_lounge():
+    pending = (Achievement.query.filter_by(status=Achievement.STATUS_PENDING)
+               .order_by(Achievement.created_at.asc()).all())
+    return render_template("platform_lounge.html", achievements=pending)
+
+
+@app.route("/platform/lounge/<int:achievement_id>/approve", methods=["POST"])
+@login_required(User.ROLE_SUPER_ADMIN)
+def platform_lounge_approve(achievement_id):
+    user = current_user()
+    achievement = db.get_or_404(Achievement, achievement_id)
+    achievement.status = Achievement.STATUS_APPROVED
+    achievement.reviewed_by = user.id
+    achievement.reviewed_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    db.session.commit()
+    app.logger.info("achievement_approved id=%s by user_id=%s", achievement.id, user.id)
+    flash("تم اعتماد الإنجاز — سيظهر الآن في Lounge", "success")
+    return redirect(url_for("platform_lounge"))
+
+
+@app.route("/platform/lounge/<int:achievement_id>/reject", methods=["POST"])
+@login_required(User.ROLE_SUPER_ADMIN)
+def platform_lounge_reject(achievement_id):
+    user = current_user()
+    achievement = db.get_or_404(Achievement, achievement_id)
+    achievement.status = Achievement.STATUS_REJECTED
+    achievement.reviewed_by = user.id
+    achievement.reviewed_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    db.session.commit()
+    app.logger.info("achievement_rejected id=%s by user_id=%s", achievement.id, user.id)
+    flash("تم رفض الإنجاز", "success")
+    return redirect(url_for("platform_lounge"))
+
+
+@app.cli.command("seed-admin")
+def seed_admin():
+    """ينشئ الإسطبل الحقيقي وحساب مالك الإسطبل الأول — مرة واحدة فقط.
+    آمن يتكرر تشغيله عند كل نشر (لا يفعل شيئًا إن كان الإسطبل موجودًا مسبقًا)،
+    لذلك يصلح ليكون جزءًا من buildCommand في render.yaml حتى بدون الوصول لـ Shell."""
+    import click
+
+    if Stable.query.first():
+        click.echo("يوجد إسطبل مسبقًا في قاعدة البيانات — تم تجاوز الإنشاء.")
+        return
+
+    stable_name = os.environ.get("STABLE_NAME", "الخيول السعودية")
+    admin_name = os.environ.get("ADMIN_NAME")
+    admin_email = os.environ.get("ADMIN_EMAIL")
+    admin_password = os.environ.get("ADMIN_PASSWORD")
+
+    if not all([admin_name, admin_email, admin_password]):
+        click.echo("تم التجاوز: لم يتم ضبط ADMIN_NAME / ADMIN_EMAIL / ADMIN_PASSWORD كمتغيرات بيئة.")
+        return
+
+    stable = Stable(name_ar=stable_name, slug="main")
+    db.session.add(stable)
+    db.session.commit()
+
+    admin = User(name=admin_name, email=admin_email.strip().lower(),
+                 stable_id=stable.id, role=User.ROLE_STABLE_OWNER)
+    admin.set_password(admin_password)
+    db.session.add(admin)
+    db.session.commit()
+    click.echo(f"تم إنشاء الإسطبل «{stable_name}» وحساب المالك {admin_email} بنجاح.")
+
+
+@app.cli.command("promote-super-admin")
+def promote_super_admin():
+    """يرقّي حساب صاحب المنصة (المحدد عبر ADMIN_EMAIL) إلى مشرف منصة (super_admin) — آمن يتكرر تشغيله.
+    يبقي stable_id للحساب كما هو، فهو يستمر بإدارة مربطه الخاص عبر /admin كالمعتاد،
+    ويكتسب إضافةً صلاحية إنشاء وإدارة مرابط أخرى عبر /platform."""
+    import click
+
+    admin_email = os.environ.get("ADMIN_EMAIL")
+    if not admin_email:
+        click.echo("تم التجاوز: لم يتم ضبط ADMIN_EMAIL.")
+        return
+
+    user = User.query.filter_by(email=admin_email.strip().lower()).first()
+    if not user:
+        click.echo(f"لم يتم العثور على مستخدم بالبريد {admin_email}.")
+        return
+    if user.role == User.ROLE_SUPER_ADMIN:
+        click.echo("الحساب مُرقّى مسبقًا لمشرف منصة — تم تجاوز الترقية.")
+        return
+
+    user.role = User.ROLE_SUPER_ADMIN
+    db.session.commit()
+    click.echo(f"تم ترقية {admin_email} إلى مشرف منصة (super_admin) بنجاح.")
+
+
+if __name__ == "__main__":
+    # للتطوير المحلي فقط. في الإنتاج يُشغَّل التطبيق عبر Gunicorn (انظر Procfile)
+    app.run(debug=app.config["DEBUG"], host="127.0.0.1", port=int(os.environ.get("PORT", 5050)))

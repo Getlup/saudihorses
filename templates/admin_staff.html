@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container" style="padding:40px 24px 90px;">
+
+  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px; margin-bottom:10px;">
+    <div>
+      <div class="eyebrow" style="color:var(--gold); font-size:.8rem; letter-spacing:2px;">لوحة الإسطبل</div>
+      <h2 style="margin:4px 0;">الموظفون</h2>
+    </div>
+    <a href="{{ url_for('admin_staff_new') }}" class="btn btn-gold">+ إضافة موظف جديد</a>
+  </div>
+
+  <div class="rail-divider"><span class="mark"></span></div>
+
+  {% if staff %}
+  <div class="panel">
+    <div class="table-scroll">
+    <table>
+      <thead>
+        <tr><th>الاسم</th><th>التخصص</th><th>البريد الإلكتروني</th><th>الجوال</th></tr>
+      </thead>
+      <tbody>
+        {% for s in staff %}
+        <tr>
+          <td>{{ s.name }}</td>
+          <td>{{ s.specialty or "—" }}</td>
+          <td>{{ s.email }}</td>
+          <td>{{ s.phone or "—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+  {% else %}
+  <div class="empty-state">لا يوجد موظفون مسجّلون بعد. أضف أول حساب موظف لتكليفه بالمهام اليومية.</div>
+  {% endif %}
+
+</div>
+{% endblock %}

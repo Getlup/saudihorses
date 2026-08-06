@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+venv/
+.venv/
+.env
+instance/
+mirbat.db
+*.db
+static/uploads/*
+!static/uploads/.gitkeep
+.DS_Store
+*.log

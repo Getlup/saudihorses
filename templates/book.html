@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container" style="padding:40px 24px 90px;">
+  <div class="section-head" style="margin-bottom:40px;">
+    <div class="eyebrow">حجز حصة</div>
+    <h2>اختر باقتك وموعد حصتك</h2>
+    <p>يمكنك اختيار حصة فردية أو باقة، مع تحديد الحصان المفضّل إن رغبت</p>
+  </div>
+
+  <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="grid grid-3" style="margin-bottom:36px;">
+      {% for pkg in packages %}
+      <label class="package-card" style="cursor:pointer; display:block;">
+        <input type="radio" name="package_id" value="{{ pkg.id }}" required style="position:absolute; opacity:0;">
+        <h3>{{ pkg.name_ar }}</h3>
+        <div class="horse-meta">{{ pkg.session_count }} حصة{% if pkg.duration_label %} · {{ pkg.duration_label }}{% endif %}</div>
+        <div class="price">{{ "%.0f"|format(pkg.price) }} <small>ر.س</small></div>
+      </label>
+      {% endfor %}
+    </div>
+
+    <div class="form-card">
+      <div class="field">
+        <label>الحصان المفضّل (اختياري)</label>
+        <select name="horse_id">
+          <option value="">— بدون تفضيل —</option>
+          {% for h in horses %}
+          <option value="{{ h.id }}">{{ h.name }} ({{ h.breed or "—" }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>التاريخ المفضّل للحصة الأولى</label>
+        <input type="date" name="session_date">
+      </div>
+      <button type="submit" class="btn btn-gold btn-block">متابعة إلى الدفع</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

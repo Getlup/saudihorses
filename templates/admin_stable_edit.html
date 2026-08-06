@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container" style="padding:40px 24px 90px;">
+  <a href="{{ url_for('admin_dashboard') }}" class="btn btn-sm">→ رجوع للوحة الإسطبل</a>
+
+  <div class="form-card" style="max-width:600px; margin-top:24px;">
+    <h2>تعديل بيانات المربط</h2>
+    <div class="sub">هذي البيانات تظهر للزوار في صفحة المربط العامة</div>
+    <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="field">
+        <label>اسم المربط</label>
+        <input type="text" name="stable_name" value="{{ stable.name_ar }}" required>
+      </div>
+      <div class="field">
+        <label>نبذة عن المربط (اختياري)</label>
+        <textarea name="description" rows="3">{{ stable.description or '' }}</textarea>
+      </div>
+
+      <div class="rail-divider"><span class="mark"></span></div>
+
+      <div class="field">
+        <label>المدينة</label>
+        <select name="city">
+          <option value="">— غير محدد —</option>
+          {% for c in cities %}
+          <option value="{{ c }}" {% if stable.city == c %}selected{% endif %}>{{ c }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>الموقع التفصيلي (حي/طريق) — اختياري</label>
+        <input type="text" name="location" value="{{ stable.location or '' }}" placeholder="مثال: حي الملقا، طريق الملك عبدالله">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>خط العرض (Latitude) — اختياري</label>
+          <input type="text" name="latitude" value="{{ stable.latitude if stable.latitude is not none else '' }}" placeholder="24.7136" dir="ltr">
+        </div>
+        <div class="field">
+          <label>خط الطول (Longitude) — اختياري</label>
+          <input type="text" name="longitude" value="{{ stable.longitude if stable.longitude is not none else '' }}" placeholder="46.6753" dir="ltr">
+        </div>
+      </div>
+      <p style="color:var(--muted); font-size:.78rem; margin-top:-8px; margin-bottom:20px;">
+        تقدر تحصل على الإحداثيات بالضغط بزر الفأرة الأيمن على موقع مربطك في خرائط جوجل، ونسخ الرقمين اللي يظهرون.
+      </p>
+
+      <button type="submit" class="btn btn-gold btn-block">حفظ التعديلات</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

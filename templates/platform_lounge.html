@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container" style="padding:40px 24px 90px;">
+  <div class="eyebrow" style="color:var(--gold); font-size:.8rem; letter-spacing:2px;">لوحة مشرف المنصة</div>
+  <h2 style="margin:4px 0 30px;">مراجعة إنجازات Lounge</h2>
+
+  {% if achievements %}
+  <div class="grid grid-2">
+    {% for a in achievements %}
+    <div class="panel">
+      {% if a.photo_path %}
+        <img class="horse-photo" style="height:200px; margin-bottom:16px;" src="{{ url_for('static', filename=a.photo_path) }}" alt="{{ a.horse.name }}">
+      {% endif %}
+      <h3 style="margin-top:0;">{{ a.title }}</h3>
+      <p style="color:var(--muted); font-size:.9rem; margin:4px 0;">
+        الحصان: {{ a.horse.name }} · المربط: {{ a.stable.name_ar }}
+      </p>
+      <p style="color:var(--muted); font-size:.9rem; margin:4px 0;">
+        قدّمه: {{ a.submitter.name }} ({{ "مالك إسطبل" if a.submitter.role == "stable_owner" else "مالك خيل" }})
+      </p>
+      {% if a.competition_name %}
+      <p style="color:var(--muted); font-size:.9rem; margin:4px 0;">المسابقة: {{ a.competition_name }}{% if a.achievement_date %} — {{ a.achievement_date }}{% endif %}</p>
+      {% endif %}
+      {% if a.description %}
+      <p style="color:var(--muted); font-size:.9rem; margin:10px 0;">{{ a.description }}</p>
+      {% endif %}
+
+      <div style="display:flex; gap:12px; margin-top:16px;">
+        <form method="POST" action="{{ url_for('platform_lounge_approve', achievement_id=a.id) }}" style="margin:0;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-gold btn-sm">اعتماد</button>
+        </form>
+        <form method="POST" action="{{ url_for('platform_lounge_reject', achievement_id=a.id) }}" style="margin:0;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-sm">رفض</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state">لا توجد إنجازات بانتظار المراجعة حاليًا.</div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container" style="padding:70px 24px 100px; text-align:center;">
+  <div class="eyebrow" style="color:var(--gold);">تم الحجز بنجاح</div>
+  <h2 style="margin:12px 0 20px;">شكرًا لك، {{ booking.visitor.name }}</h2>
+  <p style="color:var(--muted); max-width:480px; margin:0 auto 30px;">
+    تم تأكيد حجزك لباقة «{{ booking.package.name_ar if booking.package else "" }}» بمبلغ
+    {{ "%.0f"|format(booking.amount) }} ر.س. سيتواصل معك فريق المربط لتأكيد الموعد النهائي.
+  </p>
+  <div class="rail-divider" style="max-width:260px; margin:0 auto 30px;"><span class="mark"></span></div>
+  <div style="display:flex; gap:14px; justify-content:center; flex-wrap:wrap;">
+    <a href="{{ url_for('booking_invoice', booking_id=booking.id) }}" class="btn btn-gold">⬇ طباعة الفاتورة</a>
+    <a href="{{ url_for('home') }}" class="btn">العودة للرئيسية</a>
+  </div>
+</div>
+{% endblock %}

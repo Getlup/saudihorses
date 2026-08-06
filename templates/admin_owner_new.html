@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container" style="padding:40px 24px 90px;">
+  <a href="{{ url_for('admin_owners') }}" class="btn btn-sm">→ رجوع لمالكي الخيول</a>
+
+  <div class="form-card" style="margin-top:24px;">
+    <h2>إضافة مالك خيل جديد</h2>
+    <div class="sub">أنشئ حساب دخول للعميل الذي سيودع خيله عندك، ثم شاركه ببريده وكلمة المرور</div>
+    <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="field">
+        <label>الاسم الكامل</label>
+        <input type="text" name="name" required>
+      </div>
+      <div class="field">
+        <label>البريد الإلكتروني</label>
+        <input type="email" name="email" required>
+      </div>
+      <div class="field">
+        <label>رقم الجوال (اختياري)</label>
+        <input type="tel" name="phone" placeholder="05XXXXXXXX">
+      </div>
+      <div class="field">
+        <label>كلمة مرور مؤقتة (8 أحرف على الأقل)</label>
+        <input type="text" name="password" required minlength="8">
+      </div>
+      <button type="submit" class="btn btn-gold btn-block">إنشاء الحساب</button>
+    </form>
+    <div class="sub" style="margin-top:22px;">
+      بعد الإنشاء، شارك العميل ببريده وكلمة المرور هذي عبر واتساب أو أي وسيلة تناسبك — يقدر يسجّل دخوله من نفس صفحة تسجيل الدخول العامة ليتابع سجل خيله اليومي.
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container" style="padding:40px 24px 90px;">
+  <div class="eyebrow" style="color:var(--gold); font-size:.8rem; letter-spacing:2px;">صفحتي الخاصة</div>
+  <h2 style="margin:4px 0 30px;">خيولي المستضافة</h2>
+
+  {% if horses %}
+  <div class="grid grid-3">
+    {% for horse in horses %}
+    <div class="horse-card">
+      {% if horse.photo_path %}
+        <img class="horse-photo" src="{{ url_for('static', filename=horse.photo_path) }}" alt="{{ horse.name }}">
+      {% else %}
+        <div class="horse-photo placeholder">{{ horse.name }}</div>
+      {% endif %}
+      <div class="horse-body">
+        <h3>{{ horse.name }}</h3>
+        <div class="horse-meta">{{ horse.breed or "—" }} · آخر سجل: {{ horse.logs[0].log_date if horse.logs else "لا يوجد" }}</div>
+        <a href="{{ url_for('owner_horse_detail', horse_id=horse.id) }}" class="btn btn-sm">متابعة الحالة اليومية</a>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state">لا توجد خيول مسجّلة باسمك حاليًا. تواصل مع إدارة الإسطبل.</div>
+  {% endif %}
+</div>
+{% endblock %}

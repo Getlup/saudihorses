@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container" style="padding:40px 24px 90px;">
+  <a href="{{ url_for('stable_home', slug=stable.slug) }}" class="btn btn-sm">→ رجوع لصفحة {{ stable.name_ar }}</a>
+
+  <div class="section-head" style="margin-top:24px;">
+    <div class="eyebrow">معرض الصور</div>
+    <h2>{{ stable.name_ar }}</h2>
+  </div>
+
+  {% if photos %}
+  <div class="grid grid-3">
+    {% for photo in photos %}
+    <div class="horse-card">
+      <img class="horse-photo" src="{{ url_for('static', filename=photo.photo_path) }}" alt="{{ photo.caption or stable.name_ar }}">
+      {% if photo.caption %}
+      <div class="horse-body">
+        <p style="color:var(--muted); font-size:.88rem; margin:0;">{{ photo.caption }}</p>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state">لا توجد صور في المعرض بعد.</div>
+  {% endif %}
+</div>
+{% endblock %}

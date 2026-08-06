@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block content %}
+
+<section class="hero">
+  <div class="hero-mark"></div>
+  <div class="eyebrow">{{ stable.name_ar }} · فروسية أصيلة</div>
+  <h1>حيث تُروى قصة كل حصان،<br>يومًا بيوم</h1>
+  <p class="lead">
+    نظام متكامل لإدارة الإسطبل: متابعة يومية دقيقة لكل حصان من تغذية ورعاية وتدريب وأدوية،
+    مع صفحة خاصة لكل مالك، وباقات حجز لحصص الركوب والتدريب لزوّار الإسطبل.
+  </p>
+  {% if stable.city or stable.location or (stable.latitude is not none and stable.longitude is not none) %}
+  <p style="color:var(--muted); font-size:.9rem; margin-top:-16px; margin-bottom:26px;">
+    📍 {{ stable.city or "" }}{% if stable.city and stable.location %} — {% endif %}{{ stable.location or "" }}
+    {% if stable.latitude is not none and stable.longitude is not none %}
+    · <a href="https://www.google.com/maps?q={{ stable.latitude }},{{ stable.longitude }}" target="_blank" rel="noopener">عرض على الخريطة</a>
+    {% endif %}
+  </p>
+  {% endif %}
+  <div class="hero-cta">
+    <a href="{{ url_for('stable_book', slug=stable.slug) }}" class="btn btn-gold">احجز حصتك الآن</a>
+    <a href="#packages" class="btn">استعرض الباقات</a>
+  </div>
+</section>
+
+<section>
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow">خيولنا</div>
+      <h2>ضيوف المربط</h2>
+      <p>كل حصان له سجل رعاية يومي كامل، وتقييم حقيقي من زوارنا</p>
+    </div>
+
+    {% if horses %}
+    <div class="grid grid-4">
+      {% for horse in horses %}
+      <div class="horse-card">
+        {% if horse.photo_path %}
+          <img class="horse-photo" src="{{ url_for('static', filename=horse.photo_path) }}" alt="{{ horse.name }}">
+        {% else %}
+          <div class="horse-photo placeholder">{{ horse.name }}</div>
+        {% endif %}
+        <div class="horse-body">
+          <h3>{{ horse.name }}</h3>
+          <div class="horse-meta">{{ horse.breed or "عربي أصيل" }} · {{ horse.color or "" }}</div>
+          {% if horse.average_rating %}
+            <div class="rating-stars">★ {{ horse.average_rating }} / 5</div>
+          {% endif %}
+          <div style="margin-top:12px;">
+            <a href="{{ url_for('stable_horse_profile', slug=stable.slug, horse_id=horse.id) }}" class="btn btn-sm">عرض الملف</a>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">لم تتم إضافة خيول بعد.</div>
+    {% endif %}
+  </div>
+</section>
+
+{% if gallery_preview %}
+<section>
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow">لمحة عن المربط</div>
+      <h2>معرض الصور</h2>
+    </div>
+    <div class="grid grid-4">
+      {% for photo in gallery_preview %}
+      <div class="horse-card">
+        <img class="horse-photo" src="{{ url_for('static', filename=photo.photo_path) }}" alt="{{ photo.caption or stable.name_ar }}">
+      </div>
+      {% endfor %}
+    </div>
+    <div style="text-align:center; margin-top:28px;">
+      <a href="{{ url_for('stable_gallery', slug=stable.slug) }}" class="btn">شاهد المعرض كاملًا</a>
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<section class="section-alt" id="packages">
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow">الأسعار</div>
+      <h2>باقات الركوب والتدريب</h2>
+      <p>أسعار مدروسة تناسب السوق السعودي، لكل المستويات</p>
+    </div>
+
+    {% if packages %}
+    <div class="grid grid-4">
+      {% for pkg in packages %}
+      <div class="package-card {% if pkg.kind == 'annual' %}featured{% endif %}">
+        {% if pkg.kind == 'annual' %}<div class="tag">الأكثر توفيرًا</div>{% endif %}
+        <h3>{{ pkg.name_ar }}</h3>
+        <div class="horse-meta">{{ pkg.session_count }} حصة{% if pkg.duration_label %} · {{ pkg.duration_label }}{% endif %}</div>
+        <div class="price">{{ "%.0f"|format(pkg.price) }} <small>ر.س</small></div>
+        {% if pkg.description %}
+        <ul>
+          {% for line in pkg.description.split('|') %}
+          <li>{{ line }}</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+        <a href="{{ url_for('stable_book', slug=stable.slug) }}" class="btn btn-solid btn-block">احجز هذه الباقة</a>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">لم تُضَف باقات بعد.</div>
+    {% endif %}
+  </div>
+</section>
+
+<section>
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow">كيف يعمل النظام</div>
+      <h2>ثلاث حلقات، إسطبل واحد</h2>
+    </div>
+    <div class="grid grid-3">
+      <div class="panel">
+        <h3>لمالك الإسطبل</h3>
+        <p style="color:var(--muted); font-size:.92rem;">تسجيل يومي لكل حصان: التغذية، الرعاية، التدريب، والأدوية، مع صورة توثيقية — ومتابعة حجوزات الزوار.</p>
+      </div>
+      <div class="panel">
+        <h3>لمالك الخيل المُودَع</h3>
+        <p style="color:var(--muted); font-size:.92rem;">صفحة خاصة تعرض حالة خيوله المستضافة في المربط أولًا بأول، دون الحاجة لزيارة يومية.</p>
+      </div>
+      <div class="panel">
+        <h3>للزائر والمتدرب</h3>
+        <p style="color:var(--muted); font-size:.92rem;">حجز حصة فردية أو باقة تدريب، دفع إلكتروني آمن، وتقييم الحصان والتجربة بعد الحصة.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+{% endblock %}

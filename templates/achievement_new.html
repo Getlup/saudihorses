@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container" style="padding:40px 24px 90px;">
+  <a href="{{ back_url }}" class="btn btn-sm">→ رجوع لملف {{ horse.name }}</a>
+
+  <div class="form-card" style="margin-top:24px;">
+    <h2>إضافة إنجاز لـ {{ horse.name }}</h2>
+    <div class="sub">
+      سيظهر هذا الإنجاز في صفحة <strong>Lounge</strong> المشتركة بعد موافقة مشرف المنصة —
+      أضف صورة احترافية إن توفرت لديك.
+    </div>
+    <form method="POST" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="field">
+        <label>عنوان الإنجاز</label>
+        <input type="text" name="title" required placeholder="مثال: المركز الأول - بطولة القدرة والتحمل">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>اسم المسابقة (اختياري)</label>
+          <input type="text" name="competition_name">
+        </div>
+        <div class="field">
+          <label>تاريخ الإنجاز</label>
+          <input type="date" name="achievement_date">
+        </div>
+      </div>
+      <div class="field">
+        <label>وصف إضافي (اختياري)</label>
+        <textarea name="description" rows="3"></textarea>
+      </div>
+      <div class="field">
+        <label>صورة احترافية للحصان</label>
+        <input type="file" name="photo" accept="image/*">
+      </div>
+      <button type="submit" class="btn btn-gold btn-block">إرسال للمراجعة</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container" style="padding:40px 24px 90px;">
+  <div class="form-card" style="max-width:640px;">
+    <h2>إضافة حصان جديد</h2>
+    <div class="sub">سجّل بيانات الحصان الأساسية ثم أضف السجل اليومي لاحقًا</div>
+    <form method="POST" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="field-row">
+        <div class="field">
+          <label>اسم الحصان</label>
+          <input type="text" name="name" required>
+        </div>
+        <div class="field">
+          <label>السلالة</label>
+          <input type="text" name="breed" placeholder="عربي أصيل">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>اللون</label>
+          <input type="text" name="color">
+        </div>
+        <div class="field">
+          <label>سنة الميلاد</label>
+          <input type="number" name="birth_year" min="1990" max="2026">
+        </div>
+      </div>
+      <div class="field">
+        <label>نوع الخدمة</label>
+        <select name="service_type">
+          <option value="boarding">إيواء (مملوك لعميل خارجي)</option>
+          <option value="training">تدريب/ركوب (متاح لحجز الزوار)</option>
+          <option value="rental">إيجار يومي</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>مالك الحصان (اختياري — اتركه فارغًا إن كان ملك الإسطبل)</label>
+        <select name="owner_id">
+          <option value="">— ملك الإسطبل —</option>
+          {% for o in horse_owners %}
+          <option value="{{ o.id }}">{{ o.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>صورة الحصان</label>
+        <input type="file" name="photo" accept="image/*">
+      </div>
+      <div class="field">
+        <label>ملاحظات عامة</label>
+        <textarea name="notes" rows="3"></textarea>
+      </div>
+      <button type="submit" class="btn btn-gold btn-block">حفظ الحصان</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

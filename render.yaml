@@ -1,0 +1,32 @@
+databases:
+  - name: mirbat-db
+    plan: free
+    databaseName: mirbat
+    user: mirbat
+
+services:
+  - type: web
+    name: mirbat-web
+    runtime: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt && flask db upgrade && flask seed-admin && flask promote-super-admin"
+    startCommand: "gunicorn wsgi:app --workers 3 --timeout 60"
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: FLASK_ENV
+        value: production
+      - key: FLASK_APP
+        value: app.py
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mirbat-db
+          property: connectionString
+      - key: STABLE_NAME
+        value: الخيول السعودية
+      - key: ADMIN_NAME
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
