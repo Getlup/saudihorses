@@ -7,8 +7,8 @@
     <form method="POST">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="field">
-        <label>البريد الإلكتروني</label>
-        <input type="email" name="email" required>
+        <label>اسم المستخدم</label>
+        <input type="text" name="username" dir="ltr" autocomplete="username" required autofocus>
       </div>
       <div class="field">
         <label>كلمة المرور</label>

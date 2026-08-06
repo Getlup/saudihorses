@@ -89,8 +89,13 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     stable_id = db.Column(db.Integer, db.ForeignKey("stables.id"), nullable=True, index=True)
     name = db.Column(db.String(150), nullable=False)
-    email = db.Column(db.String(150), unique=True, nullable=False, index=True)
-    phone = db.Column(db.String(30))
+    # البريد الإلكتروني أصبح اختياريًا — التسجيل الأساسي الآن برقم الجوال
+    email = db.Column(db.String(150), unique=True, nullable=True, index=True)
+    # معرّف الدخول اليومي بعد التسجيل — فريد، يُنشأ وقت التسجيل
+    username = db.Column(db.String(50), unique=True, nullable=True, index=True)
+    # رقم الجوال بصيغة موحّدة دوليًا (+9665XXXXXXXX) — فريد ومطلوب، ويُتحقق منه عبر OTP وقت التسجيل
+    phone = db.Column(db.String(30), unique=True, nullable=True, index=True)
+    phone_verified_at = db.Column(db.DateTime, nullable=True)
     password_hash = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(20), nullable=False, default=ROLE_VISITOR)
     specialty = db.Column(db.String(50))   # يُستخدم فقط لحسابات role=staff
@@ -106,6 +111,44 @@ class User(db.Model):
 
     def check_password(self, raw):
         return check_password_hash(self.password_hash, raw)
+
+    @property
+    def is_phone_verified(self):
+        return self.phone_verified_at is not None
+
+
+class PhoneOtp(db.Model):
+    """أكواد تحقق الجوال المؤقتة — تُستخدم مرة واحدة فقط وقت التسجيل الأول
+    (أو استرجاع كلمة المرور لاحقًا). لا تُستخدم لتسجيل الدخول اليومي."""
+    __tablename__ = "phone_otps"
+
+    PURPOSE_REGISTER = "register"
+    PURPOSE_RESET_PASSWORD = "reset_password"
+
+    id = db.Column(db.Integer, primary_key=True)
+    phone = db.Column(db.String(30), nullable=False, index=True)
+    code_hash = db.Column(db.String(255), nullable=False)
+    purpose = db.Column(db.String(20), nullable=False, default=PURPOSE_REGISTER)
+    attempts = db.Column(db.Integer, nullable=False, default=0)
+    max_attempts = db.Column(db.Integer, nullable=False, default=5)
+    consumed_at = db.Column(db.DateTime, nullable=True)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+
+    def set_code(self, raw_code):
+        self.code_hash = generate_password_hash(raw_code)
+
+    def check_code(self, raw_code):
+        return check_password_hash(self.code_hash, raw_code)
+
+    @property
+    def is_expired(self):
+        return datetime.now(timezone.utc).replace(tzinfo=None) >= self.expires_at
+
+    @property
+    def is_usable(self):
+        return (self.consumed_at is None and not self.is_expired
+                and self.attempts < self.max_attempts)
 
 
 class Horse(db.Model):

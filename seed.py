@@ -20,7 +20,7 @@ if os.environ.get("FLASK_ENV") != "development":
         "لتشغيله، اضبط أولًا: FLASK_ENV=development"
     )
 
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime, timezone
 from app import app
 from models import db, Stable, User, Horse, Package, DailyLog, Booking, Review
 
@@ -42,16 +42,16 @@ with app.app_context():
     db.session.commit()
 
     # مالك الإسطبل
-    admin = User(name="سطام الغيداني", email="admin@alezz.sa", phone="0500000001",
+    admin = User(name="سطام الغيداني", email="admin@alezz.sa", phone="+966500000001",
                  role=User.ROLE_STABLE_OWNER, stable_id=stable.id)
     admin.set_password("admin123")
     db.session.add(admin)
 
-    # ثلاثة ملّاك خيول خارجيين (خدمة إيواء)
+    # ثلاثة ملّاك خيول خارجيين (خدمة إيواء) — رقم جوال مختلف لكل واحد (الحقل أصبح فريدًا)
     owners_data = [
-        ("خالد المطيري", "khaled@example.com", 3),
-        ("فهد العتيبي", "fahad@example.com", 3),
-        ("ناصر القحطاني", "nasser@example.com", 4),
+        ("خالد المطيري", "khaled@example.com", "+966501234561", 3),
+        ("فهد العتيبي", "fahad@example.com", "+966501234562", 3),
+        ("ناصر القحطاني", "nasser@example.com", "+966501234563", 4),
     ]
     horse_names = [
         "الأصيل", "غيمة", "الشهم", "لؤلؤة", "الفارس",
@@ -61,8 +61,8 @@ with app.app_context():
     colors = ["أشهب", "كميت", "أدهم", "أشقر"]
 
     name_idx = 0
-    for owner_name, owner_email, count in owners_data:
-        owner = User(name=owner_name, email=owner_email, phone="0501234567",
+    for owner_name, owner_email, owner_phone, count in owners_data:
+        owner = User(name=owner_name, email=owner_email, phone=owner_phone,
                      role=User.ROLE_HORSE_OWNER, stable_id=stable.id)
         owner.set_password("owner123")
         db.session.add(owner)
@@ -129,8 +129,9 @@ with app.app_context():
         db.session.add(Package(stable_id=stable.id, **p))
 
     # زائر تجريبي
-    visitor = User(name="عبدالله الشمري", email="visitor@example.com", phone="0559876543",
-                    role=User.ROLE_VISITOR, stable_id=stable.id)
+    visitor = User(name="عبدالله الشمري", email="visitor@example.com", phone="+966559876543",
+                    username="abdullah_alshamri", role=User.ROLE_VISITOR, stable_id=stable.id,
+                    phone_verified_at=datetime.now(timezone.utc).replace(tzinfo=None))
     visitor.set_password("visitor123")
     db.session.add(visitor)
 

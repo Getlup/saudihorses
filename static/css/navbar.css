@@ -1,0 +1,220 @@
+/* ============================================================
+   شريط التنقل المعاد تصميمه + الحركات التفاعلية الهادئة
+   يعتمد على متغيرات style.css (--ink, --gold...) مع إضافة قيم مخصصة للشريط
+   ============================================================ */
+
+:root{
+  --header-h: 76px;
+  --header-h-scrolled: 68px;
+  --header-bg: #0D1C16;
+  --section-bg: #111E18;
+  --text-primary: #F1EBDD;
+  --text-secondary: #B9B7AD;
+  --gold-accent: #C3A04E;
+  --border-soft: rgba(195,160,78,0.20);
+  --hover-bg: rgba(195,160,78,0.08);
+}
+
+/* ---------- الشريط الرئيسي ---------- */
+.site-header{
+  position: sticky; top: 0; z-index: 100;
+  height: var(--header-h);
+  background: var(--header-bg);
+  border-bottom: 1px solid var(--border-soft);
+  transition: height 220ms ease, background-color 220ms ease, box-shadow 220ms ease;
+}
+.site-header.is-scrolled{
+  height: var(--header-h-scrolled);
+  background: rgba(13, 28, 22, 0.94);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+}
+.header-inner{
+  max-width: 1320px; margin: 0 auto; height: 100%;
+  padding: 0 32px;
+  display: flex; align-items: center; justify-content: space-between; gap: 24px;
+}
+@media(max-width: 1360px){ .header-inner{ max-width: 1280px; } }
+
+/* ---------- الشعار ---------- */
+.brand{
+  display: flex; align-items: center; gap: 11px;
+  font-family: 'Amiri', serif; font-size: 1.35rem; color: var(--text-primary);
+  width: 200px; flex: none;
+}
+.brand-logo{ height: 34px; width: 34px; object-fit: contain; }
+.brand-name{ letter-spacing: .2px; }
+
+/* ---------- روابط التنقل ---------- */
+.primary-nav{ display: flex; align-items: center; gap: 30px; flex: 1; }
+.nav-link{
+  position: relative;
+  color: var(--text-secondary);
+  background: none; border: none; cursor: pointer;
+  font-family: inherit; font-size: .95rem;
+  padding: 10px 4px; margin: -10px -4px;
+  display: inline-flex; align-items: center; gap: 4px;
+  transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease;
+}
+.nav-link::after{
+  content:""; position:absolute; right:0; left:0; bottom:2px;
+  height:2px; background: var(--gold-accent);
+  transform: scaleX(0); transform-origin: center;
+  transition: transform 220ms ease-out, opacity 220ms ease-out;
+  opacity:.55;
+}
+.nav-link:hover{ color: var(--text-primary); background: var(--hover-bg); border-radius: 6px; }
+.nav-link:hover::after{ transform: scaleX(.6); }
+.nav-link.is-active{ color: var(--gold-accent); font-weight: 600; }
+.nav-link.is-active::after{ transform: scaleX(1); opacity: 1; }
+.nav-link:focus-visible{ outline: 2px solid var(--gold-accent); outline-offset: 3px; border-radius: 4px; }
+
+/* ---------- القوائم المنسدلة ---------- */
+.dropdown{ position: relative; }
+.dropdown-trigger .dropdown-arrow{ transition: transform 180ms ease; font-size: .75em; }
+.dropdown.is-open .dropdown-arrow{ transform: rotate(180deg); }
+
+.dropdown-menu{
+  position: absolute; top: calc(100% + 10px); left: 0;
+  min-width: 230px; max-width: 260px;
+  background: var(--section-bg);
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  box-shadow: 0 14px 34px rgba(0,0,0,0.28);
+  padding: 6px;
+  visibility: hidden; opacity: 0; pointer-events: none;
+  transform: translateY(-8px) scale(0.97);
+  transform-origin: top left;
+  transition: opacity 180ms ease, transform 180ms cubic-bezier(0.22,1,0.36,1), visibility 180ms;
+  z-index: 200;
+}
+.dropdown-menu-left{ left: auto; right: 0; transform-origin: top right; }
+.dropdown.is-open .dropdown-menu{
+  visibility: visible; opacity: 1; pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+.dropdown.is-open .dropdown-menu.is-closing{ transition-duration: 140ms; }
+
+.dropdown-menu a,
+.dropdown-menu .dropdown-item-danger{
+  display: block; width: 100%; text-align: right;
+  padding: 14px 16px; border-radius: 7px;
+  color: var(--text-primary); font-size: .92rem;
+  background: none; border: none; cursor: pointer; font-family: inherit;
+  transition: background-color 150ms ease;
+}
+.dropdown-menu a:hover,
+.dropdown-menu .dropdown-item-danger:hover{ background: var(--hover-bg); }
+.dropdown-menu .dropdown-item-danger{ color: #C9836E; }
+.dropdown-divider{ height: 1px; background: var(--border-soft); margin: 6px 4px; }
+.dropdown-form{ margin: 0; }
+
+/* ---------- إجراءات الشريط (جرس/مستخدم) ---------- */
+.header-actions{ display: flex; align-items: center; gap: 18px; flex: none; }
+.user-trigger{
+  display: flex; align-items: center; gap: 10px;
+  background: none; border: none; cursor: pointer; color: var(--text-primary);
+  font-family: inherit; font-size: .92rem; padding: 6px 4px;
+}
+.user-avatar{
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--hover-bg); border: 1px solid var(--border-soft);
+  color: var(--gold-accent); font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* ---------- زر الجوال ---------- */
+.nav-toggle{ display: none; }
+.nav-burger{
+  display: none; flex-direction: column; justify-content: center; gap: 5px;
+  width: 40px; height: 40px; cursor: pointer;
+}
+.nav-burger span{ display:block; width:22px; height:2px; background:var(--gold-accent); margin:0 auto; transition:.25s; }
+
+.mobile-nav{ display: none; }
+
+@media(max-width: 900px){
+  .primary-nav{ display: none; }
+  .header-actions .user-name{ display: none; }
+  .nav-burger{ display: flex; }
+  .mobile-nav{
+    display: flex; flex-direction: column;
+    max-height: 0; overflow: hidden;
+    background: var(--section-bg);
+    border-bottom: 1px solid var(--border-soft);
+    transition: max-height 280ms ease;
+  }
+  .mobile-nav a, .mobile-nav button, .mobile-nav summary{
+    padding: 14px 24px; min-height: 44px; display: flex; align-items: center;
+    color: var(--text-primary); border-bottom: 1px solid var(--border-soft);
+    background: none; border-inline: none; border-top: none; width: 100%;
+    text-align: right; font-family: inherit; font-size: .95rem; cursor: pointer;
+  }
+  .mobile-subnav a{ padding-inline-start: 40px; }
+  .nav-toggle:checked ~ .mobile-nav{ max-height: 600px; }
+  .nav-toggle:checked ~ .header-inner .nav-burger span:nth-child(1){ transform: translateY(7px) rotate(45deg); }
+  .nav-toggle:checked ~ .header-inner .nav-burger span:nth-child(2){ opacity: 0; }
+  .nav-toggle:checked ~ .header-inner .nav-burger span:nth-child(3){ transform: translateY(-7px) rotate(-45deg); }
+}
+
+/* ---------- قسم الترحيب (Breadcrumb + عنوان + وصف) ---------- */
+.page-intro{
+  background: var(--section-bg);
+  padding: 36px 0 28px;
+  margin-bottom: 30px;
+}
+.page-intro-inner{
+  max-width: 1320px; margin: 0 auto; padding: 0 32px;
+  display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 16px;
+}
+.breadcrumb{ color: var(--text-secondary); font-size: .82rem; margin-bottom: 10px; }
+.breadcrumb a{ color: var(--text-secondary); }
+.breadcrumb a:hover{ color: var(--gold-accent); }
+.page-intro h1, .page-intro h2{ margin: 4px 0; }
+.page-intro p{ color: var(--text-secondary); margin: 6px 0 0; max-width: 640px; }
+
+[data-intro-el]{
+  opacity: 0; transform: translateY(12px);
+  animation: intro-in 500ms ease forwards;
+}
+[data-intro-el="crumb"]{ animation-delay: 0ms; }
+[data-intro-el="title"]{ animation-delay: 70ms; }
+[data-intro-el="desc"]{ animation-delay: 140ms; }
+[data-intro-el="action"]{ animation-delay: 210ms; }
+@keyframes intro-in{ to{ opacity:1; transform: translateY(0); } }
+
+/* ---------- بطاقات إحصائيات + عداد أرقام حقيقي ---------- */
+.stat-grid{ display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 30px; }
+.stat-card{
+  background: var(--section-bg); border: 1px solid var(--border-soft); border-radius: 10px;
+  padding: 20px;
+  opacity: 0; transform: translateY(14px);
+  transition: opacity 450ms ease, transform 450ms cubic-bezier(0.22,1,0.36,1);
+}
+.stat-card.is-visible{ opacity: 1; transform: translateY(0); }
+.stat-card .stat-label{ color: var(--text-secondary); font-size: .82rem; }
+.stat-card .stat-value{ font-family:'Amiri', serif; font-size: 2rem; color: var(--gold-accent); margin-top: 6px; }
+
+/* ---------- تفاعلات الأزرار ---------- */
+.primary-button, .btn-gold{
+  transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+}
+.primary-button:hover, .btn-gold:hover{ transform: translateY(-2px); box-shadow: 0 10px 24px rgba(195,160,78,0.18); }
+.primary-button:active, .btn-gold:active{ transform: translateY(1px); }
+
+/* ---------- ظهور العناصر عند التمرير ---------- */
+[data-reveal]{
+  opacity: 0; transform: translateY(14px);
+  transition: opacity 500ms ease, transform 500ms cubic-bezier(0.22,1,0.36,1);
+}
+[data-reveal].is-visible{ opacity: 1; transform: translateY(0); }
+
+/* ---------- تقليل الحركة ---------- */
+@media (prefers-reduced-motion: reduce){
+  *, *::before, *::after{
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -4,25 +4,22 @@
   <div class="form-card">
     <h2>إنشاء حساب زائر</h2>
     <div class="sub">لحجز حصص الركوب والتدريب في {{ stable.name_ar }}</div>
+    <div class="steps-indicator">
+      <span class="step is-active">1. رقم الجوال</span>
+      <span class="step">2. تفعيل الحساب</span>
+    </div>
     <form method="POST">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="field">
         <label>الاسم الكامل</label>
-        <input type="text" name="name" required>
-      </div>
-      <div class="field">
-        <label>البريد الإلكتروني</label>
-        <input type="email" name="email" required>
+        <input type="text" name="name" value="{{ name or '' }}" required>
       </div>
       <div class="field">
         <label>رقم الجوال</label>
-        <input type="tel" name="phone" placeholder="05XXXXXXXX">
+        <input type="tel" name="phone" value="{{ phone or '' }}" placeholder="05XXXXXXXX" dir="ltr" required>
+        <div class="hint">سنرسل لك كود تحقق برسالة نصية على هذا الرقم</div>
       </div>
-      <div class="field">
-        <label>كلمة المرور</label>
-        <input type="password" name="password" required>
-      </div>
-      <button type="submit" class="btn btn-gold btn-block">إنشاء الحساب</button>
+      <button type="submit" class="btn btn-gold btn-block">إرسال كود التحقق</button>
     </form>
     <div class="sub" style="margin-top:22px;">لديك حساب بالفعل؟ <a href="{{ url_for('login') }}">تسجيل الدخول</a></div>
   </div>

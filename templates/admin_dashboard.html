@@ -1,26 +1,54 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="container" style="padding:40px 24px 90px;">
 
-  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px; margin-bottom:10px;">
+<div class="page-intro">
+  <div class="page-intro-inner">
     <div>
-      <div class="eyebrow" style="color:var(--gold); font-size:.8rem; letter-spacing:2px;">لوحة الإسطبل</div>
-      <h2 style="margin:4px 0;">خيول {{ current_user.stable.name_ar }}</h2>
+      <div class="breadcrumb" data-intro-el="crumb"><a href="{{ url_for('home') }}">الرئيسية</a> / لوحة الإسطبل</div>
+      <h1 data-intro-el="title">مرحبًا بك في لوحة {{ current_user.stable.name_ar }}</h1>
+      <p data-intro-el="desc">متابعة وإدارة بيانات الخيول والعمليات اليومية بكل سهولة.</p>
     </div>
-    <div style="display:flex; gap:12px; flex-wrap:wrap;">
-      {% if current_user.role != 'staff' %}
-      <a href="{{ url_for('admin_owners') }}" class="btn">مالكو الخيول</a>
-      <a href="{{ url_for('admin_staff') }}" class="btn">الموظفون</a>
-      <a href="{{ url_for('admin_gallery') }}" class="btn">معرض الصور</a>
-      <a href="{{ url_for('admin_stable_edit') }}" class="btn">تعديل بيانات المربط</a>
-      <a href="{{ url_for('admin_horse_new') }}" class="btn btn-gold">+ إضافة حصان جديد</a>
-      {% endif %}
+    {% if current_user.role != 'staff' %}
+    <a href="{{ url_for('admin_horse_new') }}" class="btn btn-gold primary-button" data-intro-el="action">+ إضافة حصان جديد</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="container" style="padding:0 24px 90px;">
+
+  <div class="stat-grid">
+    <div class="stat-card" data-reveal>
+      <div class="stat-label">إجمالي الخيول</div>
+      <div class="stat-value" data-count-to="{{ horses_count }}">0</div>
     </div>
+    <div class="stat-card" data-reveal>
+      <div class="stat-label">مهام اليوم المنجزة</div>
+      <div class="stat-value" data-count-to="{{ done_tasks }}">0</div>
+    </div>
+    <div class="stat-card" data-reveal>
+      <div class="stat-label">إجمالي مهام اليوم</div>
+      <div class="stat-value" data-count-to="{{ total_tasks }}">0</div>
+    </div>
+    {% if current_user.role != 'staff' %}
+    <div class="stat-card" data-reveal>
+      <div class="stat-label">حجوزات بانتظار التأكيد</div>
+      <div class="stat-value" data-count-to="{{ pending_bookings_count }}">0</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div style="display:flex; justify-content:flex-end; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
+    {% if current_user.role != 'staff' %}
+    <a href="{{ url_for('admin_owners') }}" class="btn">مالكو الخيول</a>
+    <a href="{{ url_for('admin_staff') }}" class="btn">الموظفون</a>
+    <a href="{{ url_for('admin_gallery') }}" class="btn">معرض الصور</a>
+    <a href="{{ url_for('admin_stable_edit') }}" class="btn">تعديل بيانات المربط</a>
+    {% endif %}
   </div>
 
   <div class="rail-divider"><span class="mark"></span></div>
 
-  <div class="panel" style="margin-bottom:30px;">
+  <div class="panel" style="margin-bottom:30px;" data-reveal>
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
       <div>
         <h3 style="margin:0; border:none; padding:0;">إنجاز مهام اليوم</h3>
@@ -36,7 +64,7 @@
   {% if horses %}
   <div class="grid grid-3">
     {% for horse in horses %}
-    <div class="horse-card">
+    <div class="horse-card" data-reveal>
       {% if horse.photo_path %}
         <img class="horse-photo" src="{{ url_for('static', filename=horse.photo_path) }}" alt="{{ horse.name }}">
       {% else %}

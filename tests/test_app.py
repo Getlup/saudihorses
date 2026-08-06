@@ -73,10 +73,10 @@ def get_csrf(html):
     return m.group(1)
 
 
-def login(client, email, password):
+def login(client, identifier, password):
     r = client.get("/login")
     csrf = get_csrf(r.get_data(as_text=True))
-    return client.post("/login", data={"email": email, "password": password, "csrf_token": csrf},
+    return client.post("/login", data={"username": identifier, "password": password, "csrf_token": csrf},
                         follow_redirects=True)
 
 
@@ -111,7 +111,7 @@ def test_security_headers_present_on_every_response(client):
 # ---------------------------------------------------------------- المصادقة
 def test_login_wrong_password_fails(client):
     r = login(client, "owner@test.com", "wrong-password")
-    assert "البريد الإلكتروني أو كلمة المرور غير صحيحة" in r.get_data(as_text=True)
+    assert "اسم المستخدم أو كلمة المرور غير صحيحة" in r.get_data(as_text=True)
 
 
 def test_login_correct_password_succeeds(client):
@@ -121,17 +121,81 @@ def test_login_correct_password_succeeds(client):
 
 
 def test_post_without_csrf_token_rejected(client):
-    r = client.post("/login", data={"email": "owner@test.com", "password": "password123"})
+    r = client.post("/login", data={"username": "owner@test.com", "password": "password123"})
     assert r.status_code == 400
 
 
-def test_register_rejects_short_password(client):
+def test_register_start_rejects_invalid_phone(client):
     r = client.get("/s/test-stable/register")
     csrf = get_csrf(r.get_data(as_text=True))
     r = client.post("/s/test-stable/register", data={
-        "name": "شخص جديد", "email": "new@test.com", "password": "short", "csrf_token": csrf
+        "name": "شخص جديد", "phone": "123", "csrf_token": csrf
+    })
+    assert "رقم الجوال غير صحيح" in r.get_data(as_text=True)
+
+
+def test_register_verify_rejects_short_password(client, monkeypatch):
+    import app as app_module
+    captured = {}
+    monkeypatch.setattr(app_module, "send_otp_sms", lambda phone, code: captured.__setitem__("code", code))
+
+    r = client.get("/s/test-stable/register")
+    csrf = get_csrf(r.get_data(as_text=True))
+    client.post("/s/test-stable/register", data={
+        "name": "شخص جديد", "phone": "0555000111", "csrf_token": csrf
+    })
+
+    r = client.get("/s/test-stable/register/verify")
+    csrf2 = get_csrf(r.get_data(as_text=True))
+    r = client.post("/s/test-stable/register/verify", data={
+        "code": captured["code"], "username": "new_visitor", "password": "short", "csrf_token": csrf2
     })
     assert "8 أحرف" in r.get_data(as_text=True)
+
+
+def test_register_full_flow_creates_verified_account(client, monkeypatch):
+    import app as app_module
+    from models import User
+    captured = {}
+    monkeypatch.setattr(app_module, "send_otp_sms", lambda phone, code: captured.__setitem__("code", code))
+
+    r = client.get("/s/test-stable/register")
+    csrf = get_csrf(r.get_data(as_text=True))
+    client.post("/s/test-stable/register", data={
+        "name": "شخص جديد", "phone": "0555000222", "csrf_token": csrf
+    })
+
+    r = client.get("/s/test-stable/register/verify")
+    csrf2 = get_csrf(r.get_data(as_text=True))
+    r = client.post("/s/test-stable/register/verify", data={
+        "code": captured["code"], "username": "new_visitor2", "password": "longenough123", "csrf_token": csrf2
+    }, follow_redirects=True)
+    assert r.status_code == 200
+
+    with client.application.app_context():
+        user = User.query.filter_by(username="new_visitor2").first()
+        assert user is not None
+        assert user.phone_verified_at is not None
+        assert user.phone == "+966555000222"
+
+
+def test_register_verify_rejects_wrong_otp(client, monkeypatch):
+    import app as app_module
+    captured = {}
+    monkeypatch.setattr(app_module, "send_otp_sms", lambda phone, code: captured.__setitem__("code", code))
+
+    r = client.get("/s/test-stable/register")
+    csrf = get_csrf(r.get_data(as_text=True))
+    client.post("/s/test-stable/register", data={
+        "name": "شخص جديد", "phone": "0555000333", "csrf_token": csrf
+    })
+
+    r = client.get("/s/test-stable/register/verify")
+    csrf2 = get_csrf(r.get_data(as_text=True))
+    r = client.post("/s/test-stable/register/verify", data={
+        "code": "000000", "username": "new_visitor3", "password": "longenough123", "csrf_token": csrf2
+    })
+    assert "غير صحيح" in r.get_data(as_text=True) or "غير صالح" in r.get_data(as_text=True)
 
 
 # ---------------------------------------------------------------- الصلاحيات (Authorization)

@@ -38,7 +38,16 @@ class Config:
     # الجلسات وملفات تعريف الارتباط
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
-    PERMANENT_SESSION_LIFETIME = 60 * 60 * 8  # 8 ساعات
+    # جلسة طويلة الأمد: تسجيل الدخول اليومي username/password فقط، بدون طلب OTP إلا وقت التسجيل
+    PERMANENT_SESSION_LIFETIME = 60 * 60 * 24 * 30  # 30 يومًا
+
+    # مزود إرسال OTP — راجع sms.py. القيمة الافتراضية "console" (تسجيل بدل إرسال فعلي) لا يجوز
+    # تركها في الإنتاج؛ يُرفض بدء التطبيق إن كانت DEBUG=False وSMS_PROVIDER لا يزال console (انظر app.py)
+    SMS_PROVIDER = os.environ.get("SMS_PROVIDER", "console").lower()
+    OTP_LENGTH = 6
+    OTP_TTL_SECONDS = 5 * 60          # صلاحية الكود: 5 دقائق
+    OTP_MAX_ATTEMPTS = 5              # حد محاولات إدخال الكود قبل رفضه
+    OTP_RESEND_COOLDOWN_SECONDS = 60  # حد أدنى بين كل طلب كود وآخر لنفس الرقم
 
     # بيئة التشغيل
     ENV = os.environ.get("FLASK_ENV", "production")

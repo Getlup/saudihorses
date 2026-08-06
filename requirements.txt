@@ -13,3 +13,4 @@ SQLAlchemy==2.0.51
 reportlab==5.0.0
 arabic-reshaper==3.0.1
 python-bidi==0.6.11
+requests==2.32.3
