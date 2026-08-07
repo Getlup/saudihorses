@@ -304,7 +304,7 @@ def home():
 def stable_home(slug):
     stable = Stable.query.filter_by(slug=slug).first_or_404()
     packages = Package.query.filter_by(stable_id=stable.id, is_active=True).all()
-    featured_horses = Horse.query.filter_by(stable_id=stable.id).limit(4).all()
+    featured_horses = Horse.query.filter_by(stable_id=stable.id, is_public=True).limit(4).all()
     gallery_preview = GalleryPhoto.query.filter_by(stable_id=stable.id).order_by(
         GalleryPhoto.created_at.desc()).limit(4).all()
     return render_template("home.html", stable=stable, packages=packages, horses=featured_horses,
@@ -523,6 +523,18 @@ def admin_horse_detail(horse_id):
     user = current_user()
     horse = Horse.query.filter_by(id=horse_id, stable_id=user.stable_id).first_or_404()
     return render_template("admin_horse_detail.html", horse=horse)
+
+
+@app.route("/admin/horse/<int:horse_id>/toggle-visibility", methods=["POST"])
+@login_required(User.ROLE_STABLE_OWNER, User.ROLE_SUPER_ADMIN)
+def admin_horse_toggle_visibility(horse_id):
+    """يتحكم بها مالك الإسطبل فقط (وليس الموظفين) — إظهار/إخفاء حصان عن الزوار والأعضاء."""
+    user = current_user()
+    horse = Horse.query.filter_by(id=horse_id, stable_id=user.stable_id).first_or_404()
+    horse.is_public = not horse.is_public
+    db.session.commit()
+    flash(f"الحصان {horse.name} الآن {'ظاهر للزوار' if horse.is_public else 'مخفي عن الزوار'}", "success")
+    return redirect(url_for("admin_horse_detail", horse_id=horse.id))
 
 
 @app.route("/admin/horse/<int:horse_id>/achievements/new", methods=["GET", "POST"])
@@ -906,7 +918,7 @@ def stable_book(slug):
     stable = Stable.query.filter_by(slug=slug).first_or_404()
     packages = Package.query.filter_by(stable_id=stable.id, is_active=True).all()
     rideable_horses = Horse.query.filter(
-        Horse.stable_id == stable.id,
+        Horse.stable_id == stable.id, Horse.is_public == True,
         Horse.service_type.in_(["training", "rental"])
     ).all()
 
@@ -930,7 +942,7 @@ def stable_book(slug):
         if horse_id:
             # تأكد أن الحصان فعلًا من نفس الإسطبل ومتاح للحجز
             valid_horse = Horse.query.filter(
-                Horse.id == int(horse_id), Horse.stable_id == stable.id,
+                Horse.id == int(horse_id), Horse.stable_id == stable.id, Horse.is_public == True,
                 Horse.service_type.in_(["training", "rental"])
             ).first()
             horse_id = valid_horse.id if valid_horse else None
@@ -1058,6 +1070,12 @@ def leave_review(booking_id):
 def stable_horse_profile(slug, horse_id):
     stable = Stable.query.filter_by(slug=slug).first_or_404()
     horse = Horse.query.filter_by(id=horse_id, stable_id=stable.id).first_or_404()
+    user = current_user()
+    is_staff_view = user and user.stable_id == stable.id and user.role in (
+        User.ROLE_STABLE_OWNER, User.ROLE_STAFF, User.ROLE_SUPER_ADMIN
+    )
+    if not horse.is_public and not is_staff_view:
+        abort(404)
     return render_template("public_horse_profile.html", horse=horse)
 
 

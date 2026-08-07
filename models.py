@@ -167,6 +167,7 @@ class Horse(db.Model):
     sire_name = db.Column(db.String(100))       # اسم الأب
     dam_name = db.Column(db.String(100))        # اسم الأم
     birth_year = db.Column(db.Integer)
+    is_public = db.Column(db.Boolean, nullable=False, default=True)  # يتحكم به مالك الإسطبل لإخفاء حصان عن الزوار
     photo_path = db.Column(db.String(300))
     service_type = db.Column(db.String(30), default="boarding", index=True)  # boarding | training | rental
     notes = db.Column(db.Text)

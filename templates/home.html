@@ -17,6 +17,7 @@
     {% endif %}
   </p>
   {% endif %}
+  <p id="live-clock" style="color:var(--muted); font-size:.82rem; margin-top:-12px; margin-bottom:26px;" dir="ltr"></p>
   <div class="hero-cta">
     <a href="{{ url_for('stable_book', slug=stable.slug) }}" class="btn btn-gold">{{ t('home.book_now') }}</a>
     <a href="#packages" class="btn">{{ t('home.view_packages') }}</a>
@@ -136,4 +137,20 @@
   </div>
 </section>
 
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    const el = document.getElementById("live-clock");
+    if (!el) return;
+    const fmt = new Intl.DateTimeFormat("{{ 'en-US' if lang == 'en' else 'ar-SA' }}", {
+      weekday: "long", year: "numeric", month: "long", day: "numeric",
+      hour: "2-digit", minute: "2-digit", timeZone: "Asia/Riyadh"
+    });
+    const update = () => { el.textContent = fmt.format(new Date()); };
+    update();
+    setInterval(update, 30000);
+  })();
+</script>
 {% endblock %}

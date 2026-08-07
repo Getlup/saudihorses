@@ -13,6 +13,17 @@
         {% include "_horse_info_card.html" %}
       </div>
 
+      {% if current_user.role in ['stable_owner', 'super_admin'] %}
+      <form method="POST" action="{{ url_for('admin_horse_toggle_visibility', horse_id=horse.id) }}" style="margin-top:14px;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-sm btn-block">
+          {% if horse.is_public %}👁️ ظاهر للزوار — اضغط للإخفاء{% else %}🚫 مخفي عن الزوار — اضغط للإظهار{% endif %}
+        </button>
+      </form>
+      {% elif not horse.is_public %}
+      <div class="badge" style="margin-top:14px;">🚫 مخفي عن الزوار حاليًا</div>
+      {% endif %}
+
       <div class="panel" style="margin-top:20px;">
         <h3 style="border:none; padding:0; margin-bottom:12px;">إنجازات منصة الفخر</h3>
         {% if horse.achievements %}
