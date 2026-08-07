@@ -10,7 +10,22 @@ document.addEventListener("DOMContentLoaded", () => {
   initActiveLink();
   initReveal();
   initCounters();
+  initLiveClock();
 });
+
+// ---------- ساعة وتاريخ حيّان بالصفحة الرئيسية (Asia/Riyadh) ----------
+function initLiveClock() {
+  const el = document.getElementById("live-clock");
+  if (!el) return;
+  const locale = el.getAttribute("data-locale") || "ar-SA";
+  const fmt = new Intl.DateTimeFormat(locale, {
+    weekday: "long", year: "numeric", month: "long", day: "numeric",
+    hour: "2-digit", minute: "2-digit", timeZone: "Asia/Riyadh"
+  });
+  const update = () => { el.textContent = fmt.format(new Date()); };
+  update();
+  setInterval(update, 30000);
+}
 
 // ---------- تقليص الشريط عند التمرير ----------
 function initHeaderScroll() {
