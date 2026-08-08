@@ -227,6 +227,18 @@ def login_required(*roles):
     return decorator
 
 
+def asset_url(filename):
+    """رابط ملف ثابت (CSS/JS) مع رقم إصدار مبني على وقت تعديل الملف نفسه — يضمن أن أي طبقة
+    تخزين مؤقت (كاش المتصفح أو CDN الاستضافة) تتجاهل النسخة القديمة تلقائيًا بعد كل نشر جديد،
+    بدل الاعتماد على تحكم المستخدم اليدوي بمسح الكاش (Hard Refresh قد لا يكفي مع بعض شبكات CDN)."""
+    full_path = os.path.join(app.static_folder, filename)
+    try:
+        version = str(int(os.path.getmtime(full_path)))
+    except OSError:
+        version = "1"
+    return url_for("static", filename=filename) + f"?v={version}"
+
+
 @app.context_processor
 def inject_globals():
     nav_stable = None
@@ -235,7 +247,7 @@ def inject_globals():
     lang = session.get("lang", "ar")
     return {
         "current_user": current_user(), "today": date.today(), "nav_stable": nav_stable,
-        "lang": lang, "t": lambda key: translate(key, lang),
+        "lang": lang, "t": lambda key: translate(key, lang), "asset_url": asset_url,
     }
 
 

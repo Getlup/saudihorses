@@ -39,7 +39,7 @@
 
   <div style="display:flex; justify-content:flex-end; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
     {% if current_user.role != 'staff' %}
-    <a href="{{ url_for('admin_owners') }}" class="btn">مالكو الخيول</a>
+    <a href="{{ url_for('admin_owners') }}" class="btn">ملّاك الخيول</a>
     <a href="{{ url_for('admin_staff') }}" class="btn">الموظفون</a>
     <a href="{{ url_for('admin_gallery') }}" class="btn">معرض الصور</a>
     <a href="{{ url_for('admin_stable_edit') }}" class="btn">تعديل بيانات المربط</a>
