@@ -37,28 +37,29 @@
           <input type="number" name="birth_year" min="1990" max="2026" value="{{ horse.birth_year or '' }}">
         </div>
         <div class="field">
-          <label>اسم الأب (اختياري)</label>
+          <label>اسم الأب</label>
           <input type="text" name="sire_name" value="{{ horse.sire_name or '' }}">
         </div>
       </div>
       <div class="field">
-        <label>اسم الأم (اختياري)</label>
+        <label>اسم الأم</label>
         <input type="text" name="dam_name" value="{{ horse.dam_name or '' }}">
       </div>
       <div class="field">
         <label>نوع الخدمة</label>
         <select name="service_type">
-          <option value="boarding" {{ "selected" if horse.service_type == "boarding" }}>إيواء (مملوك لعميل خارجي)</option>
-          <option value="training" {{ "selected" if horse.service_type == "training" }}>تدريب/ركوب (متاح لحجز الزوار)</option>
-          <option value="rental" {{ "selected" if horse.service_type == "rental" }}>إيجار يومي</option>
+          <option value="boarding" {{ "selected" if horse.service_type == "boarding" }}>إيواء</option>
+          <option value="training" {{ "selected" if horse.service_type == "training" }}>تدريب</option>
+          <option value="riding" {{ "selected" if horse.service_type == "riding" }}>ركوب</option>
+          <option value="treatment" {{ "selected" if horse.service_type == "treatment" }}>علاج</option>
         </select>
       </div>
       <div class="field">
-        <label>مالك الحصان (اختياري — اتركه فارغًا إن كان ملك الإسطبل)</label>
+        <label>نوع الملكية</label>
         <select name="owner_id">
-          <option value="">— ملك الإسطبل —</option>
+          <option value="" {{ "selected" if not horse.owner_id }}>ملك لـ {{ current_user.stable.name_ar }}</option>
           {% for o in horse_owners %}
-          <option value="{{ o.id }}" {{ "selected" if horse.owner_id == o.id }}>{{ o.name }}</option>
+          <option value="{{ o.id }}" {{ "selected" if horse.owner_id == o.id }}>إيواء — {{ o.name }}</option>
           {% endfor %}
         </select>
       </div>

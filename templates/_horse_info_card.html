@@ -43,8 +43,9 @@
       <dt>نوع الخدمة</dt>
       <dd>
         {% if horse.service_type == 'boarding' %}إيواء
-        {% elif horse.service_type == 'training' %}تدريب/ركوب
-        {% elif horse.service_type == 'rental' %}إيجار يومي
+        {% elif horse.service_type == 'training' %}تدريب
+        {% elif horse.service_type == 'riding' %}ركوب
+        {% elif horse.service_type == 'treatment' %}علاج
         {% else %}{{ horse.service_type or "—" }}
         {% endif %}
       </dd>

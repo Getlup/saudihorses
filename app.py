@@ -1163,7 +1163,7 @@ def stable_book(slug):
     packages = Package.query.filter_by(stable_id=stable.id, is_active=True).all()
     rideable_horses = Horse.query.filter(
         Horse.stable_id == stable.id, Horse.is_public == True,
-        Horse.service_type.in_(["training", "rental"])
+        Horse.service_type.in_(["training", "riding"])
     ).all()
 
     if request.method == "POST":
@@ -1187,7 +1187,7 @@ def stable_book(slug):
             # تأكد أن الحصان فعلًا من نفس الإسطبل ومتاح للحجز
             valid_horse = Horse.query.filter(
                 Horse.id == int(horse_id), Horse.stable_id == stable.id, Horse.is_public == True,
-                Horse.service_type.in_(["training", "rental"])
+                Horse.service_type.in_(["training", "riding"])
             ).first()
             horse_id = valid_horse.id if valid_horse else None
 

@@ -169,7 +169,7 @@ class Horse(db.Model):
     birth_year = db.Column(db.Integer)
     is_public = db.Column(db.Boolean, nullable=False, default=True)  # يتحكم به مالك الإسطبل لإخفاء حصان عن الزوار
     photo_path = db.Column(db.String(300))
-    service_type = db.Column(db.String(30), default="boarding", index=True)  # boarding | training | rental
+    service_type = db.Column(db.String(30), default="boarding", index=True)  # boarding | training | riding | treatment
     notes = db.Column(db.Text)
     # بيانات ملف الحصان الموسّع — حساسة ولا تُعرض للزوار العامّين، فقط لفريق الإسطبل ومالك الخيل
     chip_number = db.Column(db.String(50))       # رقم الشريحة أو الجواز
