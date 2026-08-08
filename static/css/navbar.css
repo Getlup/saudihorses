@@ -237,7 +237,7 @@
   border-bottom: 1px solid var(--border-soft); padding-bottom: 16px; margin-bottom: 16px;
 }
 .status-field-label{ display: block; margin-bottom: 8px; font-weight: 600; }
-.status-toggle{ display: flex; gap: 10px; }
+.status-toggle{ display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; }
 .status-field input[type="radio"]{
   position: absolute; opacity: 0; width: 1px; height: 1px; overflow: hidden;
 }
@@ -252,7 +252,7 @@
 .status-field input[value="abnormal"]:checked + .status-radio-label.status-abnormal{
   background: rgba(201,131,110,0.16); border-color: rgba(201,131,110,0.5); color: #E3A192;
 }
-.status-detail{ display: none; margin-top: 10px; }
+.status-detail{ display: none; margin-top: 10px; flex-basis: 100%; width: 100%; }
 .status-field input[value="abnormal"]:checked ~ .status-detail{ display: block; }
 .status-detail textarea{
   width: 100%; background: var(--header-bg); border: 1px solid var(--border-soft);

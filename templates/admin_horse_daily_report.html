@@ -7,7 +7,8 @@
 
   <form method="GET" style="margin-bottom:20px; display:flex; gap:10px; align-items:center;">
     <label style="margin:0;">عرض تقرير تاريخ آخر:</label>
-    <input type="date" name="date" value="{{ day.isoformat() }}" onchange="this.form.submit()">
+    <input type="date" name="date" value="{{ day.isoformat() }}">
+    <button type="submit" class="btn btn-sm">عرض</button>
   </form>
 
   {% if report and report.completed_by %}
@@ -29,9 +30,9 @@
         <input type="radio" name="{{ key }}_status" value="abnormal" id="{{ key }}_abnormal"
                {{ "checked" if current_status == "abnormal" }}>
         <label for="{{ key }}_abnormal" class="status-radio-label status-abnormal">غير طبيعي</label>
-      </div>
-      <div class="status-detail">
-        <textarea name="{{ key }}_detail" rows="2" placeholder="تفاصيل الحالة غير الطبيعية...">{{ current_detail or "" }}</textarea>
+        <div class="status-detail">
+          <textarea name="{{ key }}_detail" rows="2" placeholder="تفاصيل الحالة غير الطبيعية...">{{ current_detail or "" }}</textarea>
+        </div>
       </div>
     </div>
     {% endfor %}
