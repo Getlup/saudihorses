@@ -23,7 +23,7 @@ from sqlalchemy import or_
 
 from config import Config
 from models import (db, Stable, User, Horse, DailyLog, DailyTask, Package, Booking, Review,
-                     Achievement, GalleryPhoto, PhoneOtp)
+                     Achievement, GalleryPhoto, PhoneOtp, Vaccination)
 from pdf_reports import build_daily_report_pdf, build_invoice_pdf
 from sms import send_otp_sms, SmsSendError
 from translations import translate
@@ -714,6 +714,14 @@ def admin_horse_new():
             service_type=request.form.get("service_type", "boarding"),
             notes=request.form.get("notes", "").strip()[:2000],
             photo_path=photo_path,
+            chip_number=request.form.get("chip_number", "").strip()[:50] or None,
+            stall_number=request.form.get("stall_number", "").strip()[:20] or None,
+            health_notes=request.form.get("health_notes", "").strip()[:2000] or None,
+            allergies=request.form.get("allergies", "").strip()[:1000] or None,
+            feeding_plan=request.form.get("feeding_plan", "").strip()[:2000] or None,
+            vet_name=request.form.get("vet_name", "").strip()[:100] or None,
+            vet_contact=request.form.get("vet_contact", "").strip()[:100] or None,
+            important_alert=request.form.get("important_alert", "").strip()[:1000] or None,
         )
         db.session.add(horse)
         db.session.commit()
@@ -722,6 +730,106 @@ def admin_horse_new():
         return redirect(url_for("admin_dashboard"))
 
     return render_template("admin_horse_new.html", horse_owners=horse_owners, genders=Horse.GENDERS)
+
+
+@app.route("/admin/horse/<int:horse_id>/edit", methods=["GET", "POST"])
+@login_required(User.ROLE_STABLE_OWNER, User.ROLE_SUPER_ADMIN, User.ROLE_STAFF)
+def admin_horse_edit(horse_id):
+    """تعديل بيانات حصان موجود — متاح للموظفين أيضًا (إدخال/تحديث بيانات الخيول والملف الصحي)."""
+    user = current_user()
+    horse = Horse.query.filter_by(id=horse_id, stable_id=user.stable_id).first_or_404()
+    horse_owners = User.query.filter_by(stable_id=user.stable_id, role=User.ROLE_HORSE_OWNER).all()
+
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        if not name:
+            flash("اسم الحصان مطلوب", "error")
+            return render_template("admin_horse_edit.html", horse=horse, horse_owners=horse_owners,
+                                    genders=Horse.GENDERS)
+
+        photo_path = save_photo(request.files.get("photo"), f"horses/{horse.id}")
+        if photo_path:
+            horse.photo_path = photo_path
+
+        owner_id = request.form.get("owner_id") or None
+        if owner_id:
+            owner = User.query.filter_by(id=int(owner_id), stable_id=user.stable_id,
+                                          role=User.ROLE_HORSE_OWNER).first()
+            owner_id = owner.id if owner else None
+        horse.owner_id = owner_id
+
+        birth_year_raw = request.form.get("birth_year")
+        horse.birth_year = int(birth_year_raw) if birth_year_raw and birth_year_raw.isdigit() else None
+
+        gender = request.form.get("gender", "").strip()
+        horse.gender = gender if gender in Horse.GENDERS else None
+
+        horse.name = name
+        horse.breed = request.form.get("breed", "").strip()[:100] or None
+        horse.color = request.form.get("color", "").strip()[:50] or None
+        horse.sire_name = request.form.get("sire_name", "").strip()[:100] or None
+        horse.dam_name = request.form.get("dam_name", "").strip()[:100] or None
+        horse.service_type = request.form.get("service_type", "boarding")
+        horse.notes = request.form.get("notes", "").strip()[:2000] or None
+        horse.chip_number = request.form.get("chip_number", "").strip()[:50] or None
+        horse.stall_number = request.form.get("stall_number", "").strip()[:20] or None
+        horse.health_notes = request.form.get("health_notes", "").strip()[:2000] or None
+        horse.allergies = request.form.get("allergies", "").strip()[:1000] or None
+        horse.feeding_plan = request.form.get("feeding_plan", "").strip()[:2000] or None
+        horse.vet_name = request.form.get("vet_name", "").strip()[:100] or None
+        horse.vet_contact = request.form.get("vet_contact", "").strip()[:100] or None
+        horse.important_alert = request.form.get("important_alert", "").strip()[:1000] or None
+
+        db.session.commit()
+        app.logger.info("horse_updated id=%s by user_id=%s", horse.id, user.id)
+        flash(f"تم تحديث بيانات «{horse.name}» بنجاح", "success")
+        return redirect(url_for("admin_horse_detail", horse_id=horse.id))
+
+    return render_template("admin_horse_edit.html", horse=horse, horse_owners=horse_owners, genders=Horse.GENDERS)
+
+
+@app.route("/admin/horse/<int:horse_id>/vaccinations/new", methods=["POST"])
+@login_required(User.ROLE_STABLE_OWNER, User.ROLE_SUPER_ADMIN, User.ROLE_STAFF)
+def admin_vaccination_new(horse_id):
+    user = current_user()
+    horse = Horse.query.filter_by(id=horse_id, stable_id=user.stable_id).first_or_404()
+
+    name = request.form.get("name", "").strip()
+    if not name:
+        flash("اسم التطعيم مطلوب", "error")
+        return redirect(url_for("admin_horse_detail", horse_id=horse.id))
+
+    def parse_date(raw):
+        try:
+            return datetime.strptime(raw, "%Y-%m-%d").date() if raw else None
+        except ValueError:
+            return None
+
+    vaccination = Vaccination(
+        horse_id=horse.id,
+        name=name[:100],
+        given_date=parse_date(request.form.get("given_date", "")),
+        next_due_date=parse_date(request.form.get("next_due_date", "")),
+        notes=request.form.get("notes", "").strip()[:300] or None,
+    )
+    db.session.add(vaccination)
+    db.session.commit()
+    flash("تمت إضافة سجل التطعيم", "success")
+    return redirect(url_for("admin_horse_detail", horse_id=horse.id))
+
+
+@app.route("/admin/vaccination/<int:vaccination_id>/delete", methods=["POST"])
+@login_required(User.ROLE_STABLE_OWNER, User.ROLE_SUPER_ADMIN, User.ROLE_STAFF)
+def admin_vaccination_delete(vaccination_id):
+    user = current_user()
+    vaccination = Vaccination.query.join(Horse).filter(
+        Vaccination.id == vaccination_id, Horse.stable_id == user.stable_id
+    ).first_or_404()
+    horse_id = vaccination.horse_id
+    db.session.delete(vaccination)
+    db.session.commit()
+    flash("تم حذف سجل التطعيم", "success")
+    return redirect(url_for("admin_horse_detail", horse_id=horse_id))
 
 
 MAX_GALLERY_PHOTOS = 30

@@ -10,8 +10,14 @@
         <div class="horse-photo placeholder detail-photo">{{ horse.name }}</div>
       {% endif %}
       <div class="panel" style="margin-top:20px;">
-        {% include "_horse_info_card.html" %}
+        {% set show_sensitive = true %}
+        {% set can_manage_horse = true %}
+        {% include "_horse_info_card.html" with context %}
       </div>
+
+      {% if current_user.role in ['stable_owner', 'super_admin', 'staff'] %}
+      <a href="{{ url_for('admin_horse_edit', horse_id=horse.id) }}" class="btn btn-sm btn-block" style="margin-top:10px;">✎ تعديل بيانات الحصان</a>
+      {% endif %}
 
       {% if current_user.role in ['stable_owner', 'super_admin'] %}
       <form method="POST" action="{{ url_for('admin_horse_toggle_visibility', horse_id=horse.id) }}" style="margin-top:14px;">

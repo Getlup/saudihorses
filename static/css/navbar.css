@@ -261,6 +261,44 @@
   .horse-info-grid{ grid-template-columns: 1fr; }
 }
 
+/* ---------- تنبيه مهم بالتعامل مع الحصان ---------- */
+.horse-alert-banner{
+  background: rgba(201, 131, 110, 0.14);
+  border: 1px solid rgba(201, 131, 110, 0.4);
+  color: #E3A192;
+  border-radius: 8px; padding: 10px 14px; font-size: .88rem;
+  margin-bottom: 16px;
+}
+
+/* ---------- الحقول الصحية الحساسة (نصية أطول) ---------- */
+.horse-info-sensitive{
+  border-top: 1px solid var(--border-soft); margin-top: 16px; padding-top: 16px;
+  display: grid; gap: 12px;
+}
+.horse-info-sensitive-item dt{
+  color: var(--text-secondary); font-size: .74rem; margin-bottom: 3px;
+}
+.horse-info-sensitive-item dd{ margin: 0; color: var(--text-primary); font-size: .88rem; line-height: 1.6; }
+
+/* ---------- جدول التطعيمات ---------- */
+.horse-info-vaccinations{ border-top: 1px solid var(--border-soft); margin-top: 16px; padding-top: 16px; }
+.horse-info-vaccinations h4{ margin: 0 0 10px; font-size: .92rem; color: var(--text-primary); }
+.vaccinations-table{ width: 100%; border-collapse: collapse; font-size: .85rem; margin-bottom: 12px; }
+.vaccinations-table th{
+  text-align: right; color: var(--text-secondary); font-weight: 500; font-size: .74rem;
+  padding: 6px 8px; border-bottom: 1px solid var(--border-soft);
+}
+.vaccinations-table td{ padding: 8px; border-bottom: 1px solid var(--border-soft); color: var(--text-primary); }
+.btn-icon-danger{
+  background: none; border: none; color: #C9836E; cursor: pointer; font-size: .9rem; padding: 2px 6px;
+}
+.vaccination-add-form{ display: flex; flex-wrap: wrap; gap: 8px; }
+.vaccination-add-form input[type="text"],
+.vaccination-add-form input[type="date"]{
+  flex: 1; min-width: 110px; background: var(--header-bg); border: 1px solid var(--border-soft);
+  border-radius: 6px; padding: 7px 10px; color: var(--text-primary); font-family: inherit; font-size: .82rem;
+}
+
 /* ---------- تقليل الحركة ---------- */
 @media (prefers-reduced-motion: reduce){
   *, *::before, *::after{

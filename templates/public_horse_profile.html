@@ -13,7 +13,9 @@
       <div class="eyebrow" style="color:var(--gold); font-size:.8rem; letter-spacing:2px;">{{ horse.stable.name_ar }}</div>
       <h1 style="margin:6px 0 14px;">{{ horse.name }}</h1>
 
-      {% include "_horse_info_card.html" %}
+      {% set show_sensitive = false %}
+      {% set can_manage_horse = false %}
+      {% include "_horse_info_card.html" with context %}
 
       {% if horse.reviews %}
         <div style="color:var(--muted); font-size:.85rem; margin-top:10px;">{{ horse.reviews|length }} تقييم من الزوار</div>

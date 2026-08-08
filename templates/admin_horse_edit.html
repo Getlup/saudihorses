@@ -2,31 +2,31 @@
 {% block content %}
 <div class="container" style="padding:40px 24px 90px;">
   <div class="form-card" style="max-width:640px;">
-    <h2>إضافة حصان جديد</h2>
-    <div class="sub">سجّل بيانات الحصان الأساسية ثم أضف السجل اليومي لاحقًا</div>
+    <h2>تعديل بيانات {{ horse.name }}</h2>
+    <div class="sub">حدّث بيانات الحصان الأساسية والملف الصحي الموسّع</div>
     <form method="POST" enctype="multipart/form-data">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="field-row">
         <div class="field">
           <label>اسم الحصان</label>
-          <input type="text" name="name" required>
+          <input type="text" name="name" value="{{ horse.name }}" required>
         </div>
         <div class="field">
           <label>السلالة</label>
-          <input type="text" name="breed" placeholder="عربي أصيل">
+          <input type="text" name="breed" value="{{ horse.breed or '' }}">
         </div>
       </div>
       <div class="field-row">
         <div class="field">
           <label>اللون</label>
-          <input type="text" name="color">
+          <input type="text" name="color" value="{{ horse.color or '' }}">
         </div>
         <div class="field">
           <label>الجنس</label>
           <select name="gender">
             <option value="">— غير محدد —</option>
             {% for g in genders %}
-            <option value="{{ g }}">{{ g }}</option>
+            <option value="{{ g }}" {{ "selected" if horse.gender == g }}>{{ g }}</option>
             {% endfor %}
           </select>
         </div>
@@ -34,23 +34,23 @@
       <div class="field-row">
         <div class="field">
           <label>سنة الميلاد</label>
-          <input type="number" name="birth_year" min="1990" max="2026">
+          <input type="number" name="birth_year" min="1990" max="2026" value="{{ horse.birth_year or '' }}">
         </div>
         <div class="field">
           <label>اسم الأب (اختياري)</label>
-          <input type="text" name="sire_name">
+          <input type="text" name="sire_name" value="{{ horse.sire_name or '' }}">
         </div>
       </div>
       <div class="field">
         <label>اسم الأم (اختياري)</label>
-        <input type="text" name="dam_name">
+        <input type="text" name="dam_name" value="{{ horse.dam_name or '' }}">
       </div>
       <div class="field">
         <label>نوع الخدمة</label>
         <select name="service_type">
-          <option value="boarding">إيواء (مملوك لعميل خارجي)</option>
-          <option value="training">تدريب/ركوب (متاح لحجز الزوار)</option>
-          <option value="rental">إيجار يومي</option>
+          <option value="boarding" {{ "selected" if horse.service_type == "boarding" }}>إيواء (مملوك لعميل خارجي)</option>
+          <option value="training" {{ "selected" if horse.service_type == "training" }}>تدريب/ركوب (متاح لحجز الزوار)</option>
+          <option value="rental" {{ "selected" if horse.service_type == "rental" }}>إيجار يومي</option>
         </select>
       </div>
       <div class="field">
@@ -58,60 +58,60 @@
         <select name="owner_id">
           <option value="">— ملك الإسطبل —</option>
           {% for o in horse_owners %}
-          <option value="{{ o.id }}">{{ o.name }}</option>
+          <option value="{{ o.id }}" {{ "selected" if horse.owner_id == o.id }}>{{ o.name }}</option>
           {% endfor %}
         </select>
       </div>
       <div class="field">
-        <label>صورة الحصان</label>
+        <label>صورة الحصان {% if horse.photo_path %}(اترك فارغًا للإبقاء على الصورة الحالية){% endif %}</label>
         <input type="file" name="photo" accept="image/*">
       </div>
       <div class="field">
         <label>ملاحظات عامة</label>
-        <textarea name="notes" rows="3"></textarea>
+        <textarea name="notes" rows="3">{{ horse.notes or '' }}</textarea>
       </div>
 
       <div class="rail-divider" style="margin:20px 0;"><span class="mark"></span></div>
-      <p style="color:var(--muted); font-size:.82rem; margin-bottom:14px;">بيانات الملف الموسّع (اختيارية) — تظهر فقط لفريق الإسطبل ومالك الخيل</p>
+      <p style="color:var(--muted); font-size:.82rem; margin-bottom:14px;">بيانات الملف الموسّع — تظهر فقط لفريق الإسطبل ومالك الخيل</p>
 
       <div class="field-row">
         <div class="field">
           <label>رقم الشريحة/الجواز</label>
-          <input type="text" name="chip_number">
+          <input type="text" name="chip_number" value="{{ horse.chip_number or '' }}">
         </div>
         <div class="field">
           <label>رقم الحظيرة</label>
-          <input type="text" name="stall_number">
+          <input type="text" name="stall_number" value="{{ horse.stall_number or '' }}">
         </div>
       </div>
       <div class="field">
         <label>الحالة الصحية المهمة</label>
-        <textarea name="health_notes" rows="2"></textarea>
+        <textarea name="health_notes" rows="2">{{ horse.health_notes or '' }}</textarea>
       </div>
       <div class="field">
         <label>الحساسية</label>
-        <textarea name="allergies" rows="2"></textarea>
+        <textarea name="allergies" rows="2">{{ horse.allergies or '' }}</textarea>
       </div>
       <div class="field">
         <label>خطة التغذية</label>
-        <textarea name="feeding_plan" rows="2"></textarea>
+        <textarea name="feeding_plan" rows="2">{{ horse.feeding_plan or '' }}</textarea>
       </div>
       <div class="field-row">
         <div class="field">
           <label>اسم الطبيب البيطري</label>
-          <input type="text" name="vet_name">
+          <input type="text" name="vet_name" value="{{ horse.vet_name or '' }}">
         </div>
         <div class="field">
           <label>تواصل البيطري</label>
-          <input type="text" name="vet_contact" dir="ltr">
+          <input type="text" name="vet_contact" dir="ltr" value="{{ horse.vet_contact or '' }}">
         </div>
       </div>
       <div class="field">
         <label>تنبيه مهم بالتعامل مع الحصان (سلوك، خطر، إلخ)</label>
-        <textarea name="important_alert" rows="2"></textarea>
+        <textarea name="important_alert" rows="2">{{ horse.important_alert or '' }}</textarea>
       </div>
 
-      <button type="submit" class="btn btn-gold btn-block">حفظ الحصان</button>
+      <button type="submit" class="btn btn-gold btn-block">حفظ التعديلات</button>
     </form>
   </div>
 </div>

@@ -171,6 +171,15 @@ class Horse(db.Model):
     photo_path = db.Column(db.String(300))
     service_type = db.Column(db.String(30), default="boarding", index=True)  # boarding | training | rental
     notes = db.Column(db.Text)
+    # بيانات ملف الحصان الموسّع — حساسة ولا تُعرض للزوار العامّين، فقط لفريق الإسطبل ومالك الخيل
+    chip_number = db.Column(db.String(50))       # رقم الشريحة أو الجواز
+    stall_number = db.Column(db.String(20))      # رقم الحظيرة
+    health_notes = db.Column(db.Text)            # الحالة الصحية المهمة
+    allergies = db.Column(db.Text)               # الحساسية
+    feeding_plan = db.Column(db.Text)             # خطة التغذية
+    vet_name = db.Column(db.String(100))          # اسم الطبيب البيطري
+    vet_contact = db.Column(db.String(100))       # بيانات تواصل البيطري
+    important_alert = db.Column(db.Text)          # تنبيه مهم بالتعامل مع الحصان (سلوك، خطر، إلخ)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     logs = db.relationship("DailyLog", backref="horse", lazy=True,
@@ -180,6 +189,8 @@ class Horse(db.Model):
     reviews = db.relationship("Review", backref="horse", lazy=True)
     achievements = db.relationship("Achievement", backref="horse", lazy=True,
                                     order_by="desc(Achievement.achievement_date)")
+    vaccinations = db.relationship("Vaccination", backref="horse", lazy=True,
+                                    order_by="desc(Vaccination.given_date)")
 
     @property
     def average_rating(self):
@@ -192,6 +203,19 @@ class Horse(db.Model):
         if not self.birth_year:
             return None
         return max(0, datetime.now(timezone.utc).year - self.birth_year)
+
+
+class Vaccination(db.Model):
+    """سجل تطعيم واحد للحصان — قائمة قابلة للإضافة (حصان واحد قد يملك عدة تطعيمات بمرور الوقت)."""
+    __tablename__ = "vaccinations"
+
+    id = db.Column(db.Integer, primary_key=True)
+    horse_id = db.Column(db.Integer, db.ForeignKey("horses.id"), nullable=False, index=True)
+    name = db.Column(db.String(100), nullable=False)          # اسم التطعيم
+    given_date = db.Column(db.Date, nullable=True)             # تاريخ الإعطاء
+    next_due_date = db.Column(db.Date, nullable=True)          # موعد الجرعة القادمة (إن وجد)
+    notes = db.Column(db.String(300))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
 
 class DailyLog(db.Model):

@@ -5,6 +5,11 @@
     <span class="horse-info-rating">★ {{ horse.average_rating }}</span>
     {% endif %}
   </div>
+
+  {% if show_sensitive and horse.important_alert %}
+  <div class="horse-alert-banner">⚠️ {{ horse.important_alert }}</div>
+  {% endif %}
+
   <dl class="horse-info-grid">
     <div class="horse-info-item">
       <dt>العمر</dt>
@@ -44,5 +49,74 @@
         {% endif %}
       </dd>
     </div>
+    {% if show_sensitive %}
+    <div class="horse-info-item">
+      <dt>رقم الشريحة/الجواز</dt>
+      <dd>{{ horse.chip_number or "—" }}</dd>
+    </div>
+    <div class="horse-info-item">
+      <dt>رقم الحظيرة</dt>
+      <dd>{{ horse.stall_number or "—" }}</dd>
+    </div>
+    {% endif %}
   </dl>
+
+  {% if show_sensitive %}
+  <div class="horse-info-sensitive">
+    <div class="horse-info-sensitive-item">
+      <dt>الحالة الصحية المهمة</dt>
+      <dd>{{ horse.health_notes or "لا توجد ملاحظات" }}</dd>
+    </div>
+    <div class="horse-info-sensitive-item">
+      <dt>الحساسية</dt>
+      <dd>{{ horse.allergies or "لا توجد" }}</dd>
+    </div>
+    <div class="horse-info-sensitive-item">
+      <dt>خطة التغذية</dt>
+      <dd>{{ horse.feeding_plan or "—" }}</dd>
+    </div>
+    <div class="horse-info-sensitive-item">
+      <dt>الطبيب البيطري</dt>
+      <dd>{{ horse.vet_name or "—" }}{% if horse.vet_contact %} · {{ horse.vet_contact }}{% endif %}</dd>
+    </div>
+  </div>
+
+  <div class="horse-info-vaccinations">
+    <h4>التطعيمات</h4>
+    {% if horse.vaccinations %}
+    <table class="vaccinations-table">
+      <thead><tr><th>الاسم</th><th>تاريخ الإعطاء</th><th>الجرعة القادمة</th>{% if can_manage_horse %}<th></th>{% endif %}</tr></thead>
+      <tbody>
+      {% for v in horse.vaccinations %}
+        <tr>
+          <td>{{ v.name }}</td>
+          <td>{{ v.given_date.strftime('%Y-%m-%d') if v.given_date else "—" }}</td>
+          <td>{{ v.next_due_date.strftime('%Y-%m-%d') if v.next_due_date else "—" }}</td>
+          {% if can_manage_horse %}
+          <td>
+            <form method="POST" action="{{ url_for('admin_vaccination_delete', vaccination_id=v.id) }}" style="margin:0;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn-icon-danger" title="حذف">✕</button>
+            </form>
+          </td>
+          {% endif %}
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p style="color:var(--muted); font-size:.85rem;">لا توجد تطعيمات مسجَّلة بعد.</p>
+    {% endif %}
+
+    {% if can_manage_horse %}
+    <form method="POST" action="{{ url_for('admin_vaccination_new', horse_id=horse.id) }}" class="vaccination-add-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="text" name="name" placeholder="اسم التطعيم" required>
+      <input type="date" name="given_date">
+      <input type="date" name="next_due_date" placeholder="الجرعة القادمة">
+      <button type="submit" class="btn btn-sm">+ إضافة</button>
+    </form>
+    {% endif %}
+  </div>
+  {% endif %}
 </div>

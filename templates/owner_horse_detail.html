@@ -11,7 +11,9 @@
         <div class="horse-photo placeholder detail-photo">{{ horse.name }}</div>
       {% endif %}
       <div class="panel" style="margin-top:20px;">
-        {% include "_horse_info_card.html" %}
+        {% set show_sensitive = true %}
+        {% set can_manage_horse = false %}
+        {% include "_horse_info_card.html" with context %}
       </div>
 
       <div class="panel" style="margin-top:20px;">
