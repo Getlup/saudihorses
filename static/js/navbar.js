@@ -14,6 +14,13 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // ---------- ساعة وتاريخ حيّان بشريط التنقل (Asia/Riyadh) ----------
+// تحويل يدوي احتياطي: أي رقم هندي-عربي (٠-٩) يُستبدل برقم لاتيني عادي (0-9)، بغض النظر
+// عن سلوك المتصفح مع numberingSystem — طبقة حماية إضافية بعد تكرار هذي المشكلة أكثر من مرة.
+const EASTERN_ARABIC_DIGITS = "٠١٢٣٤٥٦٧٨٩";
+function forceLatinDigits(str) {
+  return str.replace(/[٠-٩]/g, (d) => String(EASTERN_ARABIC_DIGITS.indexOf(d)));
+}
+
 function initLiveClock() {
   const el = document.getElementById("live-clock");
   if (!el) return;
@@ -23,15 +30,15 @@ function initLiveClock() {
 
   const locale = el.getAttribute("data-locale") || "ar-SA";
   const timeFmt = new Intl.DateTimeFormat(locale, {
-    hour: "2-digit", minute: "2-digit", timeZone: "Asia/Riyadh"
+    hour: "2-digit", minute: "2-digit", timeZone: "Asia/Riyadh", numberingSystem: "latn"
   });
   const dateFmt = new Intl.DateTimeFormat(locale, {
-    day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Riyadh"
+    day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Riyadh", numberingSystem: "latn"
   });
   const update = () => {
     const now = new Date();
-    timeEl.textContent = timeFmt.format(now);
-    dateEl.textContent = dateFmt.format(now);
+    timeEl.textContent = forceLatinDigits(timeFmt.format(now));
+    dateEl.textContent = forceLatinDigits(dateFmt.format(now));
   };
   update();
   setInterval(update, 30000);
