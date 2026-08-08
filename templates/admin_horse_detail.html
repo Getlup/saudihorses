@@ -17,6 +17,9 @@
 
       {% if current_user.role in ['stable_owner', 'super_admin', 'staff'] %}
       <a href="{{ url_for('admin_horse_edit', horse_id=horse.id) }}" class="btn btn-sm btn-block" style="margin-top:10px;">✎ تعديل بيانات الحصان</a>
+      {% if current_user.role in ['stable_owner', 'super_admin'] %}
+      <a href="{{ url_for('admin_horse_export', horse_id=horse.id) }}" class="btn btn-sm btn-block" style="margin-top:10px;">⬇ تصدير الملف (PDF/Excel)</a>
+      {% endif %}
       {% endif %}
 
       {% if current_user.role in ['stable_owner', 'super_admin'] %}

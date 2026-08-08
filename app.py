@@ -24,7 +24,8 @@ from sqlalchemy import or_
 from config import Config
 from models import (db, Stable, User, Horse, DailyLog, DailyTask, Package, Booking, Review,
                      Achievement, GalleryPhoto, PhoneOtp, Vaccination, Medication, DailyReport)
-from pdf_reports import build_daily_report_pdf, build_invoice_pdf
+from pdf_reports import build_daily_report_pdf, build_invoice_pdf, build_horse_reports_pdf
+from xlsx_reports import build_horse_reports_xlsx
 from sms import send_otp_sms, SmsSendError
 from translations import translate
 
@@ -718,6 +719,62 @@ def admin_horse_daily_report(horse_id):
 
     return render_template("admin_horse_daily_report.html", horse=horse, report=report, day=day,
                             status_fields=DailyReport.STATUS_FIELDS)
+
+
+def _resolve_export_reports(horse, range_type, date_str):
+    """يحدد التقارير المطلوبة للتصدير حسب النطاق المختار، ويرجع (reports, range_label)."""
+    if range_type == "day":
+        try:
+            day = datetime.strptime(date_str, "%Y-%m-%d").date() if date_str else date.today()
+        except ValueError:
+            day = date.today()
+        reports = DailyReport.query.filter_by(horse_id=horse.id, report_date=day).order_by(
+            DailyReport.report_date.desc()).all()
+        return reports, f"يوم {day.isoformat()}"
+    reports = DailyReport.query.filter_by(horse_id=horse.id).order_by(DailyReport.report_date.desc()).all()
+    return reports, "كل الأيام"
+
+
+@app.route("/admin/horse/<int:horse_id>/export")
+@login_required(User.ROLE_STABLE_OWNER, User.ROLE_SUPER_ADMIN)
+def admin_horse_export(horse_id):
+    """صفحة اختيار نطاق التصدير (يوم محدد أو كل الأيام) وصيغته (PDF أو Excel) —
+    مالك الإسطبل فقط (تصدير التقارير ليس من صلاحيات الموظف)."""
+    user = current_user()
+    horse = Horse.query.filter_by(id=horse_id, stable_id=user.stable_id).first_or_404()
+    return render_template("admin_horse_export.html", horse=horse, today=date.today())
+
+
+@app.route("/admin/horse/<int:horse_id>/export/pdf")
+@login_required(User.ROLE_STABLE_OWNER, User.ROLE_SUPER_ADMIN)
+def admin_horse_export_pdf(horse_id):
+    user = current_user()
+    horse = Horse.query.filter_by(id=horse_id, stable_id=user.stable_id).first_or_404()
+    stable = db.session.get(Stable, user.stable_id)
+
+    range_type = request.args.get("range", "day")
+    reports, range_label = _resolve_export_reports(horse, range_type, request.args.get("date"))
+
+    pdf_buf = build_horse_reports_pdf(stable, horse, reports, range_label)
+    filename = f"ملف-{horse.name}-{range_label}.pdf".replace(" ", "-")
+    return send_file(pdf_buf, mimetype="application/pdf", as_attachment=True, download_name=filename)
+
+
+@app.route("/admin/horse/<int:horse_id>/export/xlsx")
+@login_required(User.ROLE_STABLE_OWNER, User.ROLE_SUPER_ADMIN)
+def admin_horse_export_xlsx(horse_id):
+    user = current_user()
+    horse = Horse.query.filter_by(id=horse_id, stable_id=user.stable_id).first_or_404()
+    stable = db.session.get(Stable, user.stable_id)
+
+    range_type = request.args.get("range", "day")
+    reports, range_label = _resolve_export_reports(horse, range_type, request.args.get("date"))
+
+    xlsx_buf = build_horse_reports_xlsx(stable, horse, reports, range_label)
+    filename = f"ملف-{horse.name}-{range_label}.xlsx".replace(" ", "-")
+    return send_file(xlsx_buf,
+                      mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                      as_attachment=True, download_name=filename)
 
 
 @app.route("/admin/horse/<int:horse_id>/tasks")

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container" style="padding:40px 24px 90px; max-width:560px;">
+  <div class="breadcrumb"><a href="{{ url_for('admin_horse_detail', horse_id=horse.id) }}">{{ horse.name }}</a> / تصدير الملف</div>
+  <h2 style="margin:6px 0 20px;">تصدير ملف {{ horse.name }} والتقارير اليومية</h2>
+
+  <div class="panel">
+    <h3 style="margin-top:0;">١. اختر النطاق</h3>
+    <form id="export-form" method="GET" action="{{ url_for('admin_horse_export_pdf', horse_id=horse.id) }}">
+      <div class="field">
+        <label style="display:flex; align-items:center; gap:8px; font-weight:normal;">
+          <input type="radio" name="range" value="all" style="width:auto;" checked>
+          كل الأيام
+        </label>
+      </div>
+      <div class="field">
+        <label style="display:flex; align-items:center; gap:8px; font-weight:normal;">
+          <input type="radio" name="range" value="day" style="width:auto;">
+          يوم محدد
+        </label>
+        <input type="date" name="date" value="{{ today.isoformat() }}" style="margin-top:8px;">
+      </div>
+
+      <h3>٢. اختر الصيغة</h3>
+      <div style="display:flex; gap:12px; flex-wrap:wrap;">
+        <button type="submit" formaction="{{ url_for('admin_horse_export_pdf', horse_id=horse.id) }}" class="btn btn-gold" style="flex:1;">⬇ تصدير PDF</button>
+        <button type="submit" formaction="{{ url_for('admin_horse_export_xlsx', horse_id=horse.id) }}" class="btn" style="flex:1;">⬇ تصدير Excel</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

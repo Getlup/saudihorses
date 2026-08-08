@@ -7,6 +7,7 @@
 import io
 import os
 import re
+from datetime import date
 import pytest
 from PIL import Image
 
@@ -15,7 +16,7 @@ os.environ["FLASK_ENV"] = "development"  # لتجاوز اشتراط SECRET_KEY 
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 
 from app import app as flask_app  # noqa: E402
-from models import db, Stable, User, Horse, Package, Achievement, DailyTask, GalleryPhoto, Booking, Review  # noqa: E402
+from models import db, Stable, User, Horse, Package, Achievement, DailyTask, GalleryPhoto, Booking, Review, DailyReport  # noqa: E402
 
 
 def make_test_image(name="test.png"):
@@ -1098,6 +1099,50 @@ def test_staff_not_shown_owner_only_dashboard_links(app, client):
     assert "معرض الصور" not in body
     assert "تعديل بيانات المربط" not in body
     assert "إضافة حصان جديد" not in body
+
+
+# ---------------------------------------------------------------- تصدير PDF/Excel لملف الحصان والتقارير
+def test_horse_export_page_and_downloads_work_for_owner(app, client):
+    with app.app_context():
+        horse = Horse.query.first()
+        hid = horse.id
+        report = DailyReport(horse_id=hid, report_date=date.today(), behavior_status="abnormal",
+                              behavior_detail="خمول واضح")
+        db.session.add(report)
+        db.session.commit()
+
+    login(client, "owner@test.com", "password123")
+
+    r = client.get(f"/admin/horse/{hid}/export")
+    assert r.status_code == 200
+
+    r = client.get(f"/admin/horse/{hid}/export/pdf?range=all")
+    assert r.status_code == 200
+    assert r.headers["Content-Type"] == "application/pdf"
+    assert r.data[:4] == b"%PDF"
+
+    r = client.get(f"/admin/horse/{hid}/export/xlsx?range=all")
+    assert r.status_code == 200
+    assert "spreadsheetml" in r.headers["Content-Type"]
+
+    today_str = date.today().isoformat()
+    r = client.get(f"/admin/horse/{hid}/export/pdf?range=day&date={today_str}")
+    assert r.status_code == 200
+    assert r.data[:4] == b"%PDF"
+
+
+def test_staff_cannot_export_horse_reports(app, client):
+    with app.app_context():
+        stable = Stable.query.first()
+        horse = Horse.query.first()
+        hid = horse.id
+        stable_id = stable.id
+    _make_staff_user(app, stable_id, email="export-staff2@test.com")
+
+    login(client, "export-staff2@test.com", "password123")
+    assert client.get(f"/admin/horse/{hid}/export").status_code == 403
+    assert client.get(f"/admin/horse/{hid}/export/pdf?range=all").status_code == 403
+    assert client.get(f"/admin/horse/{hid}/export/xlsx?range=all").status_code == 403
 
 
 def _create_paid_booking(app):

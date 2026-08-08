@@ -232,6 +232,136 @@ def build_daily_report_pdf(stable, horse, day, tasks):
     return buf
 
 
+def build_horse_reports_pdf(stable, horse, reports, range_label):
+    """يبني PDF يجمع بطاقة بيانات الحصان (ملخص) + التقارير اليومية الجديدة (طبيعي/غير طبيعي)
+    ضمن نطاق تاريخ محدد (يوم واحد أو كل الأيام)، مرتبة من الأحدث للأقدم."""
+    _register_fonts()
+    buf = BytesIO()
+    c = rl_canvas.Canvas(buf, pagesize=A4)
+    _draw_letterhead(c, stable.name_ar)
+
+    y = CONTENT_TOP
+    c.setFillColor(INK)
+    c.setFont("Amiri-Bold", 18)
+    c.drawCentredString(PAGE_W / 2, y, ar(f"ملف {horse.name} — التقارير اليومية"))
+    y -= 8 * mm
+    c.setFillColor(MUTED)
+    c.setFont("Amiri", 10)
+    c.drawCentredString(PAGE_W / 2, y, ar(f"{stable.name_ar} — {range_label}"))
+    y -= 12 * mm
+
+    # ---------------- ملخص بيانات الحصان ----------------
+    owner_name = horse.owner.name if horse.owner else stable.name_ar
+    age_label = f"{horse.age} سنة" if horse.age is not None else "—"
+    profile_lines = [
+        f"العمر: {age_label}    الجنس: {horse.gender or '—'}    السلالة: {horse.breed or '—'}    اللون: {horse.color or '—'}",
+        f"المالك: {owner_name}    رقم الشريحة/الجواز: {horse.chip_number or '—'}    رقم الحظيرة: {horse.stall_number or '—'}",
+    ]
+    if horse.allergies:
+        profile_lines.append(f"الحساسية: {horse.allergies}")
+    if horse.important_alert:
+        profile_lines.append(f"⚠ تنبيه مهم: {horse.important_alert}")
+
+    c.setFillColor(INK)
+    c.setFont("Amiri", 9.5)
+    for line in profile_lines:
+        for wrapped in wrap_ar_lines(line, "Amiri", 9.5, PAGE_W - 2 * MARGIN):
+            c.drawRightString(PAGE_W - MARGIN, y, wrapped)
+            y -= 5 * mm
+    y -= 6 * mm
+
+    c.setStrokeColor(GOLD)
+    c.setLineWidth(0.6)
+    c.line(MARGIN, y, PAGE_W - MARGIN, y)
+    y -= 8 * mm
+
+    STATUS_FIELD_LABELS = [
+        ("appetite", "الشهية والتغذية"), ("water", "شرب الماء"), ("droppings", "الروث والتبول"),
+        ("behavior", "الحالة والسلوك العام"), ("movement", "الحركة (عرج/إصابة)"),
+    ]
+
+    if not reports:
+        c.setFillColor(MUTED)
+        c.setFont("Amiri", 10)
+        c.drawCentredString(PAGE_W / 2, y, ar("لا توجد تقارير مسجَّلة ضمن هذا النطاق"))
+        c.save()
+        buf.seek(0)
+        return buf
+
+    card_w = PAGE_W - 2 * MARGIN
+    for report in reports:
+        # نحسب ارتفاع البطاقة مسبقًا لضمان عدم تقطيعها بين صفحتين
+        lines_needed = 1  # سطر التاريخ
+        field_render = []
+        for key, label in STATUS_FIELD_LABELS:
+            status = getattr(report, f"{key}_status")
+            detail = getattr(report, f"{key}_detail")
+            status_ar = "غير طبيعي" if status == "abnormal" else "طبيعي"
+            text = f"{label}: {status_ar}" + (f" — {detail}" if status == "abnormal" and detail else "")
+            wrapped = wrap_ar_lines(text, "Amiri", 9, card_w - 10 * mm)
+            field_render.append(wrapped)
+            lines_needed += len(wrapped)
+
+        extra_render = []
+        for label, value in [("التدريب/النشاط", report.training_activity),
+                              ("الأدوية/العلاجات", report.medication_given),
+                              ("ملاحظة", report.note)]:
+            if value:
+                wrapped = wrap_ar_lines(f"{label}: {value}", "Amiri", 9, card_w - 10 * mm)
+                extra_render.append(wrapped)
+                lines_needed += len(wrapped)
+
+        card_h = lines_needed * 5 * mm + 8 * mm
+
+        if y - card_h < CONTENT_BOTTOM:
+            c.showPage()
+            _draw_letterhead(c, stable.name_ar)
+            y = CONTENT_TOP
+
+        card_top = y
+        c.setStrokeColor(MUTED)
+        c.setLineWidth(0.4)
+        c.roundRect(MARGIN, card_top - card_h, card_w, card_h, 2 * mm, fill=0, stroke=1)
+
+        cy = card_top - 6 * mm
+        c.setFillColor(INK)
+        c.setFont("Amiri-Bold", 10.5)
+        c.drawRightString(PAGE_W - MARGIN - 4 * mm, cy, ar(report.report_date.strftime("%Y-%m-%d")))
+        cy -= 6 * mm
+
+        c.setFont("Amiri", 9)
+        for wrapped in field_render:
+            for line in wrapped:
+                c.setFillColor(INK)
+                c.drawRightString(PAGE_W - MARGIN - 4 * mm, cy, line)
+                cy -= 5 * mm
+
+        if extra_render:
+            c.setStrokeColor(GOLD_SOFT)
+            c.setLineWidth(0.4)
+            c.line(MARGIN + 4 * mm, cy + 2 * mm, PAGE_W - MARGIN - 4 * mm, cy + 2 * mm)
+            cy -= 2 * mm
+            for wrapped in extra_render:
+                for line in wrapped:
+                    c.setFillColor(MUTED)
+                    c.drawRightString(PAGE_W - MARGIN - 4 * mm, cy, line)
+                    cy -= 5 * mm
+
+        y = card_top - card_h - 5 * mm
+
+    c.setFillColor(MUTED)
+    c.setFont("Amiri", 8)
+    if y < CONTENT_BOTTOM + 8 * mm:
+        c.showPage()
+        _draw_letterhead(c, stable.name_ar)
+        y = CONTENT_TOP
+    c.drawRightString(PAGE_W - MARGIN, CONTENT_BOTTOM, ar(f"تاريخ الإصدار: {datetime.now().strftime('%Y-%m-%d %H:%M')}"))
+
+    c.save()
+    buf.seek(0)
+    return buf
+
+
 def build_invoice_pdf(stable, booking):
     """يبني PDF لفاتورة حجز حصة تدريب/ركوب."""
     _register_fonts()
