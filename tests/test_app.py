@@ -585,16 +585,26 @@ def test_marking_task_skipped_clears_completed_fields(app, client):
         assert t.completed_at is None
 
 
-def test_dashboard_shows_task_completion_kpi(app, client):
+def test_dashboard_shows_daily_report_completion_kpi(app, client):
     with app.app_context():
         horse = Horse.query.first()
         hid = horse.id
 
     login(client, "owner@test.com", "password123")
-    client.get(f"/admin/horse/{hid}/tasks")  # يضمن وجود المهام
+    r = client.get("/admin")
+    assert "إنجاز التقارير اليومية" in r.get_data(as_text=True)
+
+    r = client.get(f"/admin/horse/{hid}/daily-report")
+    csrf = get_csrf(r.get_data(as_text=True))
+    r = client.post(f"/admin/horse/{hid}/daily-report", data={
+        "csrf_token": csrf, "appetite_status": "normal", "water_status": "normal",
+        "droppings_status": "normal", "behavior_status": "normal", "movement_status": "normal",
+    }, follow_redirects=True)
+    assert r.status_code == 200
 
     r = client.get("/admin")
-    assert "إنجاز مهام اليوم" in r.get_data(as_text=True)
+    body = r.get_data(as_text=True)
+    assert "100%" in body
 
 
 def test_horse_owner_can_view_but_not_update_tasks(app, client):

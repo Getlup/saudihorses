@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container" style="padding:40px 24px 90px; max-width:720px;">
+  <div class="breadcrumb"><a href="{{ url_for('admin_horse_detail', horse_id=horse.id) }}">{{ horse.name }}</a> / التقرير اليومي</div>
+  <h2 style="margin:6px 0 4px;">التقرير اليومي — {{ horse.name }}</h2>
+  <div class="sub" style="margin-bottom:6px;">{{ day.strftime('%Y-%m-%d') }}</div>
+
+  <form method="GET" style="margin-bottom:20px; display:flex; gap:10px; align-items:center;">
+    <label style="margin:0;">عرض تقرير تاريخ آخر:</label>
+    <input type="date" name="date" value="{{ day.isoformat() }}" onchange="this.form.submit()">
+  </form>
+
+  {% if report and report.completed_by %}
+  <div class="badge" style="margin-bottom:16px;">آخر حفظ بواسطة {{ report.staff.name if report.staff else "—" }}</div>
+  {% endif %}
+
+  <form method="POST" enctype="multipart/form-data" class="panel daily-report-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    {% for key, label in status_fields %}
+    {% set current_status = report[key ~ "_status"] if report else "normal" %}
+    {% set current_detail = report[key ~ "_detail"] if report else "" %}
+    <div class="status-field">
+      <label class="status-field-label">{{ label }}</label>
+      <div class="status-toggle">
+        <input type="radio" name="{{ key }}_status" value="normal" id="{{ key }}_normal"
+               {{ "checked" if current_status != "abnormal" }}>
+        <label for="{{ key }}_normal" class="status-radio-label status-normal">طبيعي</label>
+        <input type="radio" name="{{ key }}_status" value="abnormal" id="{{ key }}_abnormal"
+               {{ "checked" if current_status == "abnormal" }}>
+        <label for="{{ key }}_abnormal" class="status-radio-label status-abnormal">غير طبيعي</label>
+      </div>
+      <div class="status-detail">
+        <textarea name="{{ key }}_detail" rows="2" placeholder="تفاصيل الحالة غير الطبيعية...">{{ current_detail or "" }}</textarea>
+      </div>
+    </div>
+    {% endfor %}
+
+    <div class="field">
+      <label>التدريب أو النشاط اليومي</label>
+      <textarea name="training_activity" rows="2">{{ report.training_activity if report else "" }}</textarea>
+    </div>
+    <div class="field">
+      <label>الأدوية أو العلاجات اليوم (إن وجدت)</label>
+      <textarea name="medication_given" rows="2">{{ report.medication_given if report else "" }}</textarea>
+    </div>
+    <div class="field">
+      <label>ملاحظة قصيرة</label>
+      <textarea name="note" rows="2">{{ report.note if report else "" }}</textarea>
+    </div>
+    <div class="field">
+      <label>صورة (عند وجود مشكلة)</label>
+      <input type="file" name="photo" accept="image/*">
+      {% if report and report.photo_path %}
+      <img src="{{ url_for('static', filename=report.photo_path) }}" style="max-width:160px; margin-top:8px; border-radius:8px;">
+      {% endif %}
+    </div>
+
+    <button type="submit" class="btn btn-gold btn-block">حفظ التقرير</button>
+  </form>
+</div>
+{% endblock %}

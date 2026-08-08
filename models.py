@@ -235,6 +235,59 @@ class Medication(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
 
+class DailyReport(db.Model):
+    """التقرير اليومي المبسّط لكل حصان (يحل محل نظام الاثنتي عشرة مهمة كواجهة العمل الأساسية
+    للموظف) — معظم الحقول طبيعي/غير طبيعي، مع تفاصيل تظهر فقط عند اختيار "غير طبيعي"."""
+    __tablename__ = "daily_reports"
+
+    STATUS_NORMAL = "normal"
+    STATUS_ABNORMAL = "abnormal"
+    STATUSES = [STATUS_NORMAL, STATUS_ABNORMAL]
+
+    id = db.Column(db.Integer, primary_key=True)
+    horse_id = db.Column(db.Integer, db.ForeignKey("horses.id"), nullable=False, index=True)
+    report_date = db.Column(db.Date, nullable=False, index=True)
+
+    appetite_status = db.Column(db.String(10), default=STATUS_NORMAL)   # الشهية والتغذية
+    appetite_detail = db.Column(db.String(500))
+    water_status = db.Column(db.String(10), default=STATUS_NORMAL)      # شرب الماء
+    water_detail = db.Column(db.String(500))
+    droppings_status = db.Column(db.String(10), default=STATUS_NORMAL)  # الروث والتبول
+    droppings_detail = db.Column(db.String(500))
+    behavior_status = db.Column(db.String(10), default=STATUS_NORMAL)   # الحالة والسلوك العام
+    behavior_detail = db.Column(db.String(500))
+    movement_status = db.Column(db.String(10), default=STATUS_NORMAL)   # الحركة / عرج أو إصابة
+    movement_detail = db.Column(db.String(500))
+
+    training_activity = db.Column(db.Text)   # التدريب أو النشاط اليومي
+    medication_given = db.Column(db.Text)    # الأدوية أو العلاجات إن وجدت اليوم
+    note = db.Column(db.Text)                # ملاحظة قصيرة
+    photo_path = db.Column(db.String(300))   # صورة عند وجود مشكلة
+
+    completed_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+                            onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+
+    horse = db.relationship("Horse", backref=db.backref("daily_reports", lazy=True,
+                                                          order_by="desc(DailyReport.report_date)"))
+    staff = db.relationship("User", foreign_keys=[completed_by])
+
+    __table_args__ = (db.UniqueConstraint("horse_id", "report_date", name="uq_daily_report_horse_date"),)
+
+    STATUS_FIELDS = [
+        ("appetite", "الشهية والتغذية"),
+        ("water", "شرب الماء"),
+        ("droppings", "الروث والتبول"),
+        ("behavior", "الحالة والسلوك العام"),
+        ("movement", "الحركة (عرج أو إصابة)"),
+    ]
+
+    @property
+    def has_abnormal(self):
+        return any(getattr(self, f"{key}_status") == self.STATUS_ABNORMAL for key, _ in self.STATUS_FIELDS)
+
+
 class DailyLog(db.Model):
     """سجل قديم بنص حر (قبل نظام المهام اليومية DailyTask) — يُبقى للسجلات التاريخية فقط،
     لا يُستخدم لإدخالات جديدة."""

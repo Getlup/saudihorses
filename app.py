@@ -23,7 +23,7 @@ from sqlalchemy import or_
 
 from config import Config
 from models import (db, Stable, User, Horse, DailyLog, DailyTask, Package, Booking, Review,
-                     Achievement, GalleryPhoto, PhoneOtp, Vaccination, Medication)
+                     Achievement, GalleryPhoto, PhoneOtp, Vaccination, Medication, DailyReport)
 from pdf_reports import build_daily_report_pdf, build_invoice_pdf
 from sms import send_otp_sms, SmsSendError
 from translations import translate
@@ -465,17 +465,20 @@ def admin_dashboard():
                          .order_by(Booking.created_at.desc()).limit(50).all())
 
     today = date.today()
-    total_tasks = 0
-    done_tasks = 0
-    for h in horses:
-        day_tasks = get_or_create_tasks_for_day(h, today)
-        total_tasks += len(day_tasks)
-        done_tasks += sum(1 for t in day_tasks if t.status == DailyTask.STATUS_DONE)
-    completion_pct = round(done_tasks / total_tasks * 100) if total_tasks else 0
+    horse_ids = [h.id for h in horses]
+    reports_today = DailyReport.query.filter(
+        DailyReport.horse_id.in_(horse_ids), DailyReport.report_date == today
+    ).all() if horse_ids else []
+    reported_horse_ids = {r.horse_id for r in reports_today}
+    reports_done = len(reported_horse_ids)
+    reports_total = len(horses)
+    completion_pct = round(reports_done / reports_total * 100) if reports_total else 0
+    abnormal_today = sum(1 for r in reports_today if r.has_abnormal)
 
     return render_template("admin_dashboard.html", horses=horses, bookings=pending_bookings,
-                            done_tasks=done_tasks, total_tasks=total_tasks, completion_pct=completion_pct,
-                            horses_count=len(horses), pending_bookings_count=len(pending_bookings))
+                            done_tasks=reports_done, total_tasks=reports_total, completion_pct=completion_pct,
+                            horses_count=len(horses), pending_bookings_count=len(pending_bookings),
+                            abnormal_today=abnormal_today)
 
 
 @app.route("/admin/stable/edit", methods=["GET", "POST"])
@@ -593,6 +596,53 @@ def admin_achievement_new(horse_id):
         return redirect(url_for("admin_horse_detail", horse_id=horse.id))
 
     return render_template("achievement_new.html", horse=horse, back_url=url_for("admin_horse_detail", horse_id=horse.id))
+
+
+@app.route("/admin/horse/<int:horse_id>/daily-report", methods=["GET", "POST"])
+@login_required(User.ROLE_STABLE_OWNER, User.ROLE_SUPER_ADMIN, User.ROLE_STAFF)
+def admin_horse_daily_report(horse_id):
+    """التقرير اليومي المبسّط (طبيعي/غير طبيعي) — الواجهة الأساسية الجديدة لإدخال بيانات
+    الحصان اليومية، تحل محل نظام الاثنتي عشرة مهمة كخطوة عمل الموظف الفعلية."""
+    user = current_user()
+    horse = Horse.query.filter_by(id=horse_id, stable_id=user.stable_id).first_or_404()
+
+    date_raw = request.args.get("date")
+    try:
+        day = datetime.strptime(date_raw, "%Y-%m-%d").date() if date_raw else date.today()
+    except ValueError:
+        day = date.today()
+
+    report = DailyReport.query.filter_by(horse_id=horse.id, report_date=day).first()
+
+    if request.method == "POST":
+        if not report:
+            report = DailyReport(horse_id=horse.id, report_date=day)
+            db.session.add(report)
+
+        for key, _ in DailyReport.STATUS_FIELDS:
+            status = request.form.get(f"{key}_status", DailyReport.STATUS_NORMAL)
+            if status not in DailyReport.STATUSES:
+                status = DailyReport.STATUS_NORMAL
+            setattr(report, f"{key}_status", status)
+            detail = request.form.get(f"{key}_detail", "").strip()[:500] if status == DailyReport.STATUS_ABNORMAL else None
+            setattr(report, f"{key}_detail", detail)
+
+        report.training_activity = request.form.get("training_activity", "").strip()[:2000] or None
+        report.medication_given = request.form.get("medication_given", "").strip()[:2000] or None
+        report.note = request.form.get("note", "").strip()[:1000] or None
+
+        photo_path = save_photo(request.files.get("photo"), f"reports/{horse.id}")
+        if photo_path:
+            report.photo_path = photo_path
+
+        report.completed_by = user.id
+        db.session.commit()
+        app.logger.info("daily_report_saved horse_id=%s date=%s by user_id=%s", horse.id, day, user.id)
+        flash("تم حفظ التقرير اليومي", "success")
+        return redirect(url_for("admin_horse_daily_report", horse_id=horse.id, date=day.isoformat()))
+
+    return render_template("admin_horse_daily_report.html", horse=horse, report=report, day=day,
+                            status_fields=DailyReport.STATUS_FIELDS)
 
 
 @app.route("/admin/horse/<int:horse_id>/tasks")

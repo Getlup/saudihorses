@@ -58,12 +58,12 @@
       <div class="panel" style="margin-bottom:30px;">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
           <div>
-            <h3 style="margin:0;">مهام اليوم</h3>
+            <h3 style="margin:0;">التقرير اليومي</h3>
             <p style="color:var(--muted); font-size:.85rem; margin:6px 0 0;">
-              الفحص، التغذية، التدريب، الأدوية، والمزيد — قائمة مهام يومية منظمة بدل التقرير الحر
+              الشهية، الماء، الحالة العامة، الحركة، والتدريب — نموذج طبيعي/غير طبيعي سريع
             </p>
           </div>
-          <a href="{{ url_for('admin_horse_tasks', horse_id=horse.id) }}" class="btn btn-gold">فتح مهام اليوم</a>
+          <a href="{{ url_for('admin_horse_daily_report', horse_id=horse.id) }}" class="btn btn-gold">فتح التقرير اليومي</a>
         </div>
       </div>
 

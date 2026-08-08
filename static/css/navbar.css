@@ -232,6 +232,33 @@
 }
 [data-reveal].is-visible{ opacity: 1; transform: translateY(0); }
 
+/* ---------- التقرير اليومي: مبدّل طبيعي/غير طبيعي (بدون JS، متوافق مع CSP) ---------- */
+.status-field{
+  border-bottom: 1px solid var(--border-soft); padding-bottom: 16px; margin-bottom: 16px;
+}
+.status-field-label{ display: block; margin-bottom: 8px; font-weight: 600; }
+.status-toggle{ display: flex; gap: 10px; }
+.status-field input[type="radio"]{
+  position: absolute; opacity: 0; width: 1px; height: 1px; overflow: hidden;
+}
+.status-radio-label{
+  cursor: pointer; padding: 7px 18px; border-radius: 20px; font-size: .85rem;
+  border: 1px solid var(--border-soft); color: var(--text-secondary);
+  transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+.status-field input[value="normal"]:checked + .status-radio-label.status-normal{
+  background: rgba(120,180,140,0.16); border-color: rgba(120,180,140,0.5); color: #9FD3B4;
+}
+.status-field input[value="abnormal"]:checked + .status-radio-label.status-abnormal{
+  background: rgba(201,131,110,0.16); border-color: rgba(201,131,110,0.5); color: #E3A192;
+}
+.status-detail{ display: none; margin-top: 10px; }
+.status-field input[value="abnormal"]:checked ~ .status-detail{ display: block; }
+.status-detail textarea{
+  width: 100%; background: var(--header-bg); border: 1px solid var(--border-soft);
+  border-radius: 8px; padding: 10px; color: var(--text-primary); font-family: inherit; font-size: .88rem;
+}
+
 /* ---------- بطاقة بيانات الحصان ---------- */
 .horse-info-card{
   background: var(--section-bg);
