@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container" style="padding:40px 24px 90px;">
+  <a href="{{ url_for('platform_dashboard') }}" class="btn btn-sm">→ رجوع لكل المرابط</a>
+
+  <div style="margin-top:20px;">
+    <div class="eyebrow" style="color:var(--gold); font-size:.8rem; letter-spacing:2px;">لوحة المنصة</div>
+    <h2 style="margin:4px 0;">طلبات مرابط بانتظار المراجعة</h2>
+  </div>
+
+  {% if stables %}
+  <div class="grid grid-3" style="margin-top:20px;">
+    {% for stable in stables %}
+    <div class="panel">
+      <h3 style="margin:0 0 6px;">{{ stable.name_ar }}</h3>
+      <p style="color:var(--muted); font-size:.85rem; margin:0 0 4px;">الرابط: /s/{{ stable.slug }}</p>
+      {% set owner = stable.users|selectattr("role", "equalto", "stable_owner")|first %}
+      {% if owner %}
+      <p style="color:var(--muted); font-size:.85rem; margin:0 0 4px;">المالك: {{ owner.name }}</p>
+      <p style="color:var(--muted); font-size:.85rem; margin:0 0 12px;" dir="ltr">{{ owner.email }}</p>
+      {% endif %}
+      <div style="display:flex; gap:10px;">
+        <form method="POST" action="{{ url_for('platform_stable_approve', stable_id=stable.id) }}" style="margin:0; flex:1;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-gold btn-sm btn-block">اعتماد</button>
+        </form>
+        <form method="POST" action="{{ url_for('platform_stable_reject', stable_id=stable.id) }}" style="margin:0; flex:1;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-sm btn-block">رفض</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state" style="margin-top:20px;">لا توجد طلبات بانتظار المراجعة حاليًا.</div>
+  {% endif %}
+</div>
+{% endblock %}

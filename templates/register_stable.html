@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container" style="padding:50px 24px 90px;">
+  <div class="form-card" style="max-width:600px;">
+    <h2>سجّل مربطك</h2>
+    <div class="sub">أنشئ حساب مربطك — بعد المراجعة والاعتماد من إدارة المنصة، يصبح ظاهرًا للزوار وجاهزًا لاستقبال الحجوزات</div>
+    <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="field">
+        <label>اسم المربط</label>
+        <input type="text" name="stable_name" required placeholder="مثال: مربط العز">
+      </div>
+      <div class="field">
+        <label>الرابط المختصر (أحرف إنجليزية صغيرة وأرقام وشرطات فقط)</label>
+        <input type="text" name="slug" required placeholder="al-ezz" dir="ltr" pattern="[a-z0-9\-]+">
+      </div>
+
+      <div class="rail-divider" style="margin:20px 0;"><span class="mark"></span></div>
+
+      <div class="field">
+        <label>اسمك (مالك المربط)</label>
+        <input type="text" name="owner_name" required>
+      </div>
+      <div class="field">
+        <label>البريد الإلكتروني</label>
+        <input type="email" name="owner_email" required>
+      </div>
+      <div class="field">
+        <label>كلمة المرور</label>
+        <input type="password" name="owner_password" required minlength="8">
+      </div>
+      <div class="field" style="display:flex; align-items:flex-start; gap:8px;">
+        <input type="checkbox" name="terms_accepted" id="terms_accepted" required style="margin-top:5px; width:auto;">
+        <label for="terms_accepted" style="margin:0; font-weight:normal; font-size:.88rem;">
+          أوافق على <a href="{{ url_for('terms') }}" target="_blank" rel="noopener">الشروط والأحكام</a> الخاصة بالمنصّة
+        </label>
+      </div>
+
+      <button type="submit" class="btn btn-gold btn-block">إرسال طلب التسجيل</button>
+    </form>
+    <div class="sub" style="margin-top:22px;">لديك حساب بالفعل؟ <a href="{{ url_for('login') }}">تسجيل الدخول</a></div>
+  </div>
+</div>
+{% endblock %}

@@ -48,6 +48,10 @@ db = SQLAlchemy()
 class Stable(db.Model):
     __tablename__ = "stables"
 
+    STATUS_PENDING = "pending"
+    STATUS_APPROVED = "approved"
+    STATUS_REJECTED = "rejected"
+
     # قائمة مدن ثابتة تُستخدم للفلترة الموثوقة في البحث (بدل نص حر قد يُكتب بأشكال مختلفة)
     CITIES = [
         "الرياض", "جدة", "مكة المكرمة", "المدينة المنورة", "الدمام", "الخبر", "الظهران",
@@ -64,6 +68,7 @@ class Stable(db.Model):
     longitude = db.Column(db.Float, nullable=True)
     description = db.Column(db.Text)
     logo_path = db.Column(db.String(300))
+    status = db.Column(db.String(20), nullable=False, default=STATUS_PENDING, index=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     users = db.relationship("User", backref="stable", lazy=True)

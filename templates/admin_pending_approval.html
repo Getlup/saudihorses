@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container" style="padding:60px 24px 90px; max-width:560px; text-align:center;">
+  {% if stable.status == "rejected" %}
+  <div class="badge" style="border-color:#C9836E; color:#E3A192; margin-bottom:20px;">تم رفض الطلب</div>
+  <h2>لم تتم الموافقة على مربط «{{ stable.name_ar }}»</h2>
+  <p style="color:var(--muted); margin-top:14px;">
+    راجع فريق المنصة طلبك ولم يتم اعتماده حاليًا. لأي استفسار، تواصل مع إدارة المنصة.
+  </p>
+  {% else %}
+  <div class="badge" style="margin-bottom:20px;">بانتظار المراجعة</div>
+  <h2>طلب مربط «{{ stable.name_ar }}» بانتظار الموافقة</h2>
+  <p style="color:var(--muted); margin-top:14px;">
+    استلمنا طلبك بنجاح، ومربطك حاليًا غير ظاهر للزوار أو قابل للحجز حتى يراجعه مشرف المنصة ويعتمده.
+    سنُعلمك فور اعتماد الطلب — عادةً خلال وقت قصير.
+  </p>
+  {% endif %}
+</div>
+{% endblock %}

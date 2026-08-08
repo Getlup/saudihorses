@@ -32,7 +32,7 @@ def app():
     limiter.reset()
     with flask_app.app_context():
         db.create_all()
-        stable = Stable(name_ar="مربط الاختبار", slug="test-stable")
+        stable = Stable(name_ar="مربط الاختبار", slug="test-stable", status=Stable.STATUS_APPROVED)
         db.session.add(stable)
         db.session.commit()
 
@@ -378,7 +378,7 @@ def test_creating_stable_rejects_duplicate_slug(app, client):
 def test_visitor_cannot_book_at_a_different_stable(app, client):
     """اختبار أمان جوهري: زائر مسجّل في مربط لا يقدر يحجز في مربط آخر."""
     with app.app_context():
-        other_stable = Stable(name_ar="مربط آخر", slug="other-stable")
+        other_stable = Stable(name_ar="مربط آخر", slug="other-stable", status=Stable.STATUS_APPROVED)
         db.session.add(other_stable)
         db.session.commit()
         other_pkg = Package(stable_id=other_stable.id, name_ar="باقة", session_count=1, price=100)
@@ -639,7 +639,7 @@ def test_horse_owner_can_view_but_not_update_tasks(app, client):
 
 def test_stable_owner_cannot_update_task_of_another_stable(app, client):
     with app.app_context():
-        other_stable = Stable(name_ar="مربط آخر للمهام", slug="tasks-other-stable")
+        other_stable = Stable(name_ar="مربط آخر للمهام", slug="tasks-other-stable", status=Stable.STATUS_APPROVED)
         db.session.add(other_stable)
         db.session.commit()
         other_horse = Horse(stable_id=other_stable.id, name="حصان مربط آخر")
@@ -793,7 +793,7 @@ def test_platform_home_filters_stables_by_city(app, client):
         s1 = Stable.query.first()
         s1.city = "الرياض"
         s1_name = s1.name_ar
-        s2 = Stable(name_ar="مربط جدة", slug="jeddah-stable", city="جدة")
+        s2 = Stable(name_ar="مربط جدة", slug="jeddah-stable", city="جدة", status=Stable.STATUS_APPROVED)
         db.session.add(s2)
         db.session.commit()
 
@@ -914,7 +914,7 @@ def test_gallery_enforces_max_photo_limit(app, client, monkeypatch):
 def test_stable_owner_cannot_delete_another_stables_gallery_photo(app, client):
     with app.app_context():
         stable = Stable.query.first()
-        other_stable = Stable(name_ar="مربط آخر للمعرض", slug="gallery-other-stable")
+        other_stable = Stable(name_ar="مربط آخر للمعرض", slug="gallery-other-stable", status=Stable.STATUS_APPROVED)
         db.session.add(other_stable)
         db.session.commit()
         owner2 = User(name="مالك آخر", email="galleryowner2@test.com", stable_id=other_stable.id,
@@ -1011,7 +1011,7 @@ def test_horse_owner_cannot_access_report_export_route(app, client):
 
 def test_report_export_blocked_for_horse_of_another_stable(app, client):
     with app.app_context():
-        other_stable = Stable(name_ar="مربط آخر للتقارير", slug="report-other-stable")
+        other_stable = Stable(name_ar="مربط آخر للتقارير", slug="report-other-stable", status=Stable.STATUS_APPROVED)
         db.session.add(other_stable)
         db.session.commit()
         other_horse = Horse(stable_id=other_stable.id, name="حصان مربط آخر")
@@ -1190,3 +1190,62 @@ def test_logout_via_post_works_and_requires_csrf(client):
     csrf = get_csrf(r.get_data(as_text=True))
     r = client.post("/logout", data={"csrf_token": csrf}, follow_redirects=True)
     assert "تم تسجيل الخروج" in r.get_data(as_text=True)
+
+
+def test_self_registered_stable_starts_pending_and_hidden(app, client):
+    r = client.get("/register-stable")
+    csrf = get_csrf(r.get_data(as_text=True))
+    r = client.post("/register-stable", data={
+        "csrf_token": csrf, "stable_name": "مربط جديد", "slug": "new-stable",
+        "owner_name": "مالك جديد", "owner_email": "newowner@test.com",
+        "owner_password": "longenough123", "terms_accepted": "on",
+    }, follow_redirects=True)
+    assert r.status_code == 200
+
+    with app.app_context():
+        stable = Stable.query.filter_by(slug="new-stable").first()
+        assert stable is not None
+        assert stable.status == Stable.STATUS_PENDING
+
+    # لا يظهر بالقائمة العامة ولا بالرابط المباشر لزائر غير مسجّل
+    logout(client)
+    r = client.get("/")
+    assert "مربط جديد" not in r.get_data(as_text=True)
+    r = client.get("/s/new-stable")
+    assert r.status_code == 404
+
+    # لكن مالكه يشوف شاشة "بانتظار الموافقة" بدل اللوحة العادية عند الدخول
+    login(client, "newowner@test.com", "longenough123")
+    r = client.get("/admin")
+    assert "بانتظار الموافقة" in r.get_data(as_text=True)
+
+
+def test_super_admin_can_approve_pending_stable(app, client):
+    with app.app_context():
+        stable = Stable(name_ar="مربط بانتظار الاعتماد", slug="pending-approval-stable",
+                         status=Stable.STATUS_PENDING)
+        db.session.add(stable)
+        db.session.commit()
+
+        owner = User.query.filter_by(email="owner@test.com").first()
+        owner.role = User.ROLE_SUPER_ADMIN
+        db.session.commit()
+
+    login(client, "owner@test.com", "password123")
+    r = client.get("/platform/stables/pending")
+    assert "مربط بانتظار الاعتماد" in r.get_data(as_text=True)
+    csrf = get_csrf(r.get_data(as_text=True))
+
+    with app.app_context():
+        stable_id = Stable.query.filter_by(slug="pending-approval-stable").first().id
+
+    r = client.post(f"/platform/stables/{stable_id}/approve", data={"csrf_token": csrf}, follow_redirects=True)
+    assert r.status_code == 200
+
+    with app.app_context():
+        stable = db.session.get(Stable, stable_id)
+        assert stable.status == Stable.STATUS_APPROVED
+
+    logout(client)
+    r = client.get("/s/pending-approval-stable")
+    assert r.status_code == 200

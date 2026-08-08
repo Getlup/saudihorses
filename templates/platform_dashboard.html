@@ -10,6 +10,12 @@
     <a href="{{ url_for('platform_stable_new') }}" class="btn btn-gold">+ إنشاء مربط جديد</a>
   </div>
 
+  {% if pending_count %}
+  <a href="{{ url_for('platform_stables_pending') }}" class="badge" style="display:inline-block; margin-bottom:16px; border-color:var(--gold); color:var(--gold);">
+    {{ pending_count }} طلب مربط جديد بانتظار المراجعة ←
+  </a>
+  {% endif %}
+
   <div class="rail-divider"><span class="mark"></span></div>
 
   {% if stables %}
@@ -17,13 +23,19 @@
     <div class="table-scroll">
     <table>
       <thead>
-        <tr><th>اسم المربط</th><th>الرابط المختصر</th><th>عدد الخيول</th><th>تاريخ الإنشاء</th><th></th></tr>
+        <tr><th>اسم المربط</th><th>الرابط المختصر</th><th>الحالة</th><th>عدد الخيول</th><th>تاريخ الإنشاء</th><th></th></tr>
       </thead>
       <tbody>
         {% for s in stables %}
         <tr>
           <td>{{ s.name_ar }}</td>
           <td dir="ltr" style="text-align:left;">/s/{{ s.slug }}</td>
+          <td>
+            {% if s.status == "approved" %}<span class="badge" style="border-color:var(--gold); color:var(--gold);">معتمد</span>
+            {% elif s.status == "pending" %}<span class="badge">بانتظار المراجعة</span>
+            {% else %}<span class="badge" style="border-color:#C9836E; color:#E3A192;">مرفوض</span>
+            {% endif %}
+          </td>
           <td>{{ s.horses|length }}</td>
           <td>{{ s.created_at.strftime('%Y-%m-%d') }}</td>
           <td>

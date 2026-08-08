@@ -330,20 +330,32 @@ def server_error(e):
 @app.route("/")
 def home():
     city_filter = request.args.get("city", "").strip()
-    query = Stable.query
+    query = Stable.query.filter_by(status=Stable.STATUS_APPROVED)
     if city_filter and city_filter in Stable.CITIES:
         query = query.filter_by(city=city_filter)
     stables = query.order_by(Stable.name_ar).all()
 
-    cities_in_use = sorted({s.city for s in Stable.query.filter(Stable.city.isnot(None)).all()})
+    cities_in_use = sorted({s.city for s in Stable.query.filter(
+        Stable.city.isnot(None), Stable.status == Stable.STATUS_APPROVED).all()})
     return render_template("platform_home.html", stables=stables,
                             cities_in_use=cities_in_use, selected_city=city_filter)
+
+
+def _stable_publicly_visible_or_404(stable):
+    """يمنع الوصول العام لمربط بانتظار المراجعة أو مرفوض — يبقى مرئيًا فقط لمالكه/موظفيه/مشرف المنصة."""
+    if stable.status == Stable.STATUS_APPROVED:
+        return
+    user = current_user()
+    if user and (user.role == User.ROLE_SUPER_ADMIN or user.stable_id == stable.id):
+        return
+    abort(404)
 
 
 # ---------------------------------------------------------------- الصفحة الرئيسية لمربط محدد
 @app.route("/s/<slug>")
 def stable_home(slug):
     stable = Stable.query.filter_by(slug=slug).first_or_404()
+    _stable_publicly_visible_or_404(stable)
     packages = Package.query.filter_by(stable_id=stable.id, is_active=True).all()
     featured_horses = Horse.query.filter_by(stable_id=stable.id, is_public=True).limit(4).all()
     gallery_preview = GalleryPhoto.query.filter_by(stable_id=stable.id).order_by(
@@ -400,6 +412,64 @@ def terms():
     return render_template("terms.html")
 
 
+@app.route("/register-stable", methods=["GET", "POST"])
+@limiter.limit("10 per minute", methods=["POST"])
+def register_stable():
+    """تسجيل ذاتي عام لمالك مربط جديد — ينشئ المربط وحسابه بحالة "بانتظار الموافقة"، ولا يظهران
+    للعموم إطلاقًا (لا بالقائمة العامة ولا بالرابط المباشر) حتى يعتمدهما مشرف المنصة."""
+    if request.method == "POST":
+        import re as _re
+
+        stable_name = request.form.get("stable_name", "").strip()
+        slug = request.form.get("slug", "").strip().lower()
+        owner_name = request.form.get("owner_name", "").strip()
+        owner_email = request.form.get("owner_email", "").strip().lower()
+        owner_password = request.form.get("owner_password", "")
+        terms_accepted = request.form.get("terms_accepted") == "on"
+
+        if not all([stable_name, slug, owner_name, owner_email, owner_password]):
+            flash("الرجاء تعبئة جميع الحقول المطلوبة", "error")
+            return render_template("register_stable.html")
+        if not terms_accepted:
+            flash("الرجاء الموافقة على الشروط والأحكام للمتابعة", "error")
+            return render_template("register_stable.html")
+        if len(owner_password) < 8:
+            flash("يجب ألا تقل كلمة المرور عن 8 أحرف", "error")
+            return render_template("register_stable.html")
+        if "@" not in owner_email or "." not in owner_email.split("@")[-1]:
+            flash("الرجاء إدخال بريد إلكتروني صحيح", "error")
+            return render_template("register_stable.html")
+        if not _re.fullmatch(r"[a-z0-9-]+", slug):
+            flash("الرابط المختصر يجب أن يحتوي أحرفًا إنجليزية صغيرة وأرقامًا وشرطات (-) فقط", "error")
+            return render_template("register_stable.html")
+        if Stable.query.filter_by(slug=slug).first():
+            flash("هذا الرابط المختصر مستخدم لمربط آخر بالفعل، اختر رابطًا مختلفًا", "error")
+            return render_template("register_stable.html")
+        if User.query.filter_by(email=owner_email).first():
+            flash("هذا البريد الإلكتروني مسجّل مسبقًا لحساب آخر", "error")
+            return render_template("register_stable.html")
+
+        stable = Stable(name_ar=stable_name, slug=slug, status=Stable.STATUS_PENDING)
+        db.session.add(stable)
+        db.session.commit()
+
+        owner = User(name=owner_name, email=owner_email, stable_id=stable.id,
+                     role=User.ROLE_STABLE_OWNER,
+                     terms_accepted_at=datetime.now(timezone.utc).replace(tzinfo=None))
+        owner.set_password(owner_password)
+        db.session.add(owner)
+        db.session.commit()
+        app.logger.info("stable_self_registered id=%s slug=%s owner_id=%s", stable.id, stable.slug, owner.id)
+
+        session.clear()
+        session["user_id"] = owner.id
+        session.permanent = True
+        flash("تم إرسال طلبك بنجاح — بانتظار موافقة مشرف المنصة قبل تفعيل مربطك", "success")
+        return redirect(url_for("admin_dashboard"))
+
+    return render_template("register_stable.html")
+
+
 # ---------------------------------------------------------------- التسجيل: بريد إلكتروني + كلمة مرور
 # ملاحظة: التسجيل عبر OTP بالجوال مُعطَّل مؤقتًا (يحتاج مزود SMS مربوط بسجل تجاري مطابق للنشاط).
 # البنية التحتية (PhoneOtp، sms.py، normalize_saudi_phone) باقية بالكود جاهزة لإعادة التفعيل لاحقًا
@@ -409,6 +479,7 @@ def terms():
 def stable_register(slug):
     """تسجيل زائر جديد يريد حجز حصص ركوب/تدريب في مربط محدد."""
     stable = Stable.query.filter_by(slug=slug).first_or_404()
+    _stable_publicly_visible_or_404(stable)
 
     if request.method == "POST":
         name = request.form.get("name", "").strip()
@@ -460,6 +531,10 @@ def stable_register(slug):
 @login_required(User.ROLE_STABLE_OWNER, User.ROLE_SUPER_ADMIN, User.ROLE_STAFF)
 def admin_dashboard():
     user = current_user()
+    stable = db.session.get(Stable, user.stable_id) if user.stable_id else None
+    if user.role != User.ROLE_SUPER_ADMIN and stable and stable.status != Stable.STATUS_APPROVED:
+        return render_template("admin_pending_approval.html", stable=stable)
+
     horses = Horse.query.filter_by(stable_id=user.stable_id).order_by(Horse.name).all()
     pending_bookings = (Booking.query.filter_by(stable_id=user.stable_id, status="pending")
                          .order_by(Booking.created_at.desc()).limit(50).all())
@@ -1160,6 +1235,7 @@ def owner_horse_tasks(horse_id):
 @app.route("/s/<slug>/book", methods=["GET", "POST"])
 def stable_book(slug):
     stable = Stable.query.filter_by(slug=slug).first_or_404()
+    _stable_publicly_visible_or_404(stable)
     packages = Package.query.filter_by(stable_id=stable.id, is_active=True).all()
     rideable_horses = Horse.query.filter(
         Horse.stable_id == stable.id, Horse.is_public == True,
@@ -1313,6 +1389,7 @@ def leave_review(booking_id):
 @app.route("/s/<slug>/horses/<int:horse_id>")
 def stable_horse_profile(slug, horse_id):
     stable = Stable.query.filter_by(slug=slug).first_or_404()
+    _stable_publicly_visible_or_404(stable)
     horse = Horse.query.filter_by(id=horse_id, stable_id=stable.id).first_or_404()
     user = current_user()
     is_staff_view = user and user.stable_id == stable.id and user.role in (
@@ -1326,6 +1403,7 @@ def stable_horse_profile(slug, horse_id):
 @app.route("/s/<slug>/gallery")
 def stable_gallery(slug):
     stable = Stable.query.filter_by(slug=slug).first_or_404()
+    _stable_publicly_visible_or_404(stable)
     photos = GalleryPhoto.query.filter_by(stable_id=stable.id).order_by(
         GalleryPhoto.created_at.desc()).all()
     return render_template("stable_gallery.html", stable=stable, photos=photos)
@@ -1336,7 +1414,37 @@ def stable_gallery(slug):
 @login_required(User.ROLE_SUPER_ADMIN)
 def platform_dashboard():
     stables = Stable.query.order_by(Stable.name_ar).all()
-    return render_template("platform_dashboard.html", stables=stables)
+    pending_count = Stable.query.filter_by(status=Stable.STATUS_PENDING).count()
+    return render_template("platform_dashboard.html", stables=stables, pending_count=pending_count)
+
+
+@app.route("/platform/stables/pending")
+@login_required(User.ROLE_SUPER_ADMIN)
+def platform_stables_pending():
+    stables = Stable.query.filter_by(status=Stable.STATUS_PENDING).order_by(Stable.created_at).all()
+    return render_template("platform_stables_pending.html", stables=stables)
+
+
+@app.route("/platform/stables/<int:stable_id>/approve", methods=["POST"])
+@login_required(User.ROLE_SUPER_ADMIN)
+def platform_stable_approve(stable_id):
+    stable = db.get_or_404(Stable, stable_id)
+    stable.status = Stable.STATUS_APPROVED
+    db.session.commit()
+    app.logger.info("stable_approved id=%s by super_admin_id=%s", stable.id, current_user().id)
+    flash(f"تم اعتماد مربط «{stable.name_ar}» — أصبح ظاهرًا للزوار الآن", "success")
+    return redirect(url_for("platform_stables_pending"))
+
+
+@app.route("/platform/stables/<int:stable_id>/reject", methods=["POST"])
+@login_required(User.ROLE_SUPER_ADMIN)
+def platform_stable_reject(stable_id):
+    stable = db.get_or_404(Stable, stable_id)
+    stable.status = Stable.STATUS_REJECTED
+    db.session.commit()
+    app.logger.info("stable_rejected id=%s by super_admin_id=%s", stable.id, current_user().id)
+    flash(f"تم رفض مربط «{stable.name_ar}»", "success")
+    return redirect(url_for("platform_stables_pending"))
 
 
 def parse_stable_location_fields(form):
@@ -1393,7 +1501,7 @@ def platform_stable_new():
 
         city, location, latitude, longitude = parse_stable_location_fields(request.form)
         stable = Stable(name_ar=stable_name, slug=slug, city=city, location=location,
-                         latitude=latitude, longitude=longitude)
+                         latitude=latitude, longitude=longitude, status=Stable.STATUS_APPROVED)
         db.session.add(stable)
         db.session.commit()
 
