@@ -80,7 +80,7 @@
         <h3>{{ horse.name }}</h3>
         <div class="horse-meta">
           {{ horse.breed or "غير محدد" }}
-          {% if horse.owner %} · مالكه: {{ horse.owner.name }}{% else %} · <span class="badge">ملك الإسطبل</span>{% endif %}
+          {% if horse.owner %} · مالكه: {{ horse.owner.name }}{% else %} · <span class="badge">{{ current_user.stable.name_ar }}</span>{% endif %}
         </div>
         <a href="{{ url_for('admin_horse_detail', horse_id=horse.id) }}" class="btn btn-sm">فتح ملف الحصان</a>
       </div>

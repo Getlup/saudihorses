@@ -37,7 +37,7 @@
     </div>
     <div class="horse-info-item">
       <dt>المالك</dt>
-      <dd>{{ horse.owner.name if horse.owner else "الإسطبل" }}</dd>
+      <dd>{{ horse.owner.name if horse.owner else horse.stable.name_ar }}</dd>
     </div>
     <div class="horse-info-item">
       <dt>نوع الخدمة</dt>
