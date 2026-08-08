@@ -976,7 +976,8 @@ def test_stable_owner_can_download_daily_report_pdf(app, client):
     assert len(r.data) > 1000
 
 
-def test_staff_can_download_daily_report_pdf(app, client):
+def test_staff_cannot_download_daily_report_pdf(app, client):
+    """تصدير التقرير يقتصر على مالك الإسطبل (ومشرف المنصة) فقط — ليس الموظفين."""
     with app.app_context():
         stable = Stable.query.first()
         horse = Horse.query.first()
@@ -989,9 +990,7 @@ def test_staff_can_download_daily_report_pdf(app, client):
 
     login(client, "reportstaff@test.com", "password123")
     client.get(f"/admin/horse/{hid}/tasks")
-    r = client.get(f"/admin/horse/{hid}/tasks/report")
-    assert r.status_code == 200
-    assert r.data[:4] == b"%PDF"
+    assert client.get(f"/admin/horse/{hid}/tasks/report").status_code == 403
 
 
 def test_horse_owner_cannot_access_report_export_route(app, client):
@@ -1022,6 +1021,83 @@ def test_report_export_blocked_for_horse_of_another_stable(app, client):
     login(client, "owner@test.com", "password123")
     r = client.get(f"/admin/horse/{other_horse_id}/tasks/report")
     assert r.status_code == 404
+
+
+# ---------------------------------------------------------------- حدود صلاحيات الموظف/المساعد
+def _make_staff_user(app, stable_id, email="perm-staff@test.com"):
+    with app.app_context():
+        staff = User(name="موظف الصلاحيات", email=email, stable_id=stable_id, role=User.ROLE_STAFF)
+        staff.set_password("password123")
+        db.session.add(staff)
+        db.session.commit()
+
+
+def test_staff_can_enter_horse_data_and_daily_reports(app, client):
+    """الموظف يقدر: يعدّل بيانات حصان موجود، ويحفظ التقرير اليومي — هذا صلب عمله المسموح."""
+    with app.app_context():
+        stable = Stable.query.first()
+        horse = Horse.query.first()
+        hid = horse.id
+        stable_id = stable.id
+    _make_staff_user(app, stable_id)
+
+    login(client, "perm-staff@test.com", "password123")
+
+    r = client.get(f"/admin/horse/{hid}/edit")
+    assert r.status_code == 200
+    csrf = get_csrf(r.get_data(as_text=True))
+    r = client.post(f"/admin/horse/{hid}/edit", data={
+        "csrf_token": csrf, "name": "الأصيل المعدّل", "service_type": "boarding",
+    }, follow_redirects=True)
+    assert r.status_code == 200
+
+    r = client.get(f"/admin/horse/{hid}/daily-report")
+    assert r.status_code == 200
+    csrf2 = get_csrf(r.get_data(as_text=True))
+    r = client.post(f"/admin/horse/{hid}/daily-report", data={
+        "csrf_token": csrf2, "appetite_status": "normal", "water_status": "normal",
+        "droppings_status": "normal", "behavior_status": "normal", "movement_status": "normal",
+    }, follow_redirects=True)
+    assert r.status_code == 200
+
+
+def test_staff_cannot_access_owner_only_admin_functions(app, client):
+    """أي إجراء إداري (إدارة الموظفين/الملّاك، تعديل المربط، المعرض، منصة الفخر، تصدير التقرير)
+    يجب أن يُرفض للموظف بـ403، مهما كان الرابط."""
+    with app.app_context():
+        stable = Stable.query.first()
+        horse = Horse.query.first()
+        hid = horse.id
+        stable_id = stable.id
+    _make_staff_user(app, stable_id)
+
+    login(client, "perm-staff@test.com", "password123")
+
+    owner_only_get_routes = [
+        "/admin/owners", "/admin/owners/new", "/admin/staff", "/admin/staff/new",
+        "/admin/stable/edit", "/admin/gallery", "/admin/horse/new",
+        f"/admin/horse/{hid}/achievements/new", f"/admin/horse/{hid}/tasks/report",
+    ]
+    for path in owner_only_get_routes:
+        r = client.get(path)
+        assert r.status_code == 403, f"{path} should be blocked for staff, got {r.status_code}"
+
+
+def test_staff_not_shown_owner_only_dashboard_links(app, client):
+    """روابط الإجراءات الإدارية لا تظهر أصلًا بلوحة الموظف — تجربة استخدام متسقة مع الصلاحيات."""
+    with app.app_context():
+        stable = Stable.query.first()
+        stable_id = stable.id
+    _make_staff_user(app, stable_id)
+
+    login(client, "perm-staff@test.com", "password123")
+    r = client.get("/admin")
+    body = r.get_data(as_text=True)
+    assert "ملّاك الخيول" not in body
+    assert "الموظفون" not in body
+    assert "معرض الصور" not in body
+    assert "تعديل بيانات المربط" not in body
+    assert "إضافة حصان جديد" not in body
 
 
 def _create_paid_booking(app):

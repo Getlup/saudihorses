@@ -742,7 +742,7 @@ def admin_horse_tasks(horse_id):
 
 
 @app.route("/admin/horse/<int:horse_id>/tasks/report")
-@login_required(User.ROLE_STABLE_OWNER, User.ROLE_SUPER_ADMIN, User.ROLE_STAFF)
+@login_required(User.ROLE_STABLE_OWNER, User.ROLE_SUPER_ADMIN)
 def admin_horse_report(horse_id):
     user = current_user()
     horse = Horse.query.filter_by(id=horse_id, stable_id=user.stable_id).first_or_404()

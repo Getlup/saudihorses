@@ -14,7 +14,9 @@
       <a href="{{ url_for('admin_horse_tasks', horse_id=horse.id) }}" class="btn btn-sm">اليوم</a>
       {% endif %}
       <a href="{{ url_for('admin_horse_tasks', horse_id=horse.id, date=next_day) }}" class="btn btn-sm">اليوم التالي ►</a>
+      {% if current_user.role != 'staff' %}
       <a href="{{ url_for('admin_horse_report', horse_id=horse.id, date=day) }}" class="btn btn-gold btn-sm">⬇ تصدير التقرير PDF</a>
+      {% endif %}
     </div>
   </div>
 
