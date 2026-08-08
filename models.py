@@ -191,6 +191,8 @@ class Horse(db.Model):
                                     order_by="desc(Achievement.achievement_date)")
     vaccinations = db.relationship("Vaccination", backref="horse", lazy=True,
                                     order_by="desc(Vaccination.given_date)")
+    medications = db.relationship("Medication", backref="horse", lazy=True,
+                                   order_by="desc(Medication.start_date)")
 
     @property
     def average_rating(self):
@@ -214,6 +216,21 @@ class Vaccination(db.Model):
     name = db.Column(db.String(100), nullable=False)          # اسم التطعيم
     given_date = db.Column(db.Date, nullable=True)             # تاريخ الإعطاء
     next_due_date = db.Column(db.Date, nullable=True)          # موعد الجرعة القادمة (إن وجد)
+    notes = db.Column(db.String(300))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+
+
+class Medication(db.Model):
+    """دواء مستمر/مزمن بملف الحصان (مثل مسكّن دائم أو مكمّل علاجي) — مختلف عن تسجيل "أُعطي دواء
+    اليوم" ضمن التقرير اليومي؛ هذا سجل ثابت يبقى ظاهرًا بملف الحصان طالما العلاج مستمر."""
+    __tablename__ = "medications"
+
+    id = db.Column(db.Integer, primary_key=True)
+    horse_id = db.Column(db.Integer, db.ForeignKey("horses.id"), nullable=False, index=True)
+    name = db.Column(db.String(100), nullable=False)          # اسم الدواء
+    dosage = db.Column(db.String(100))                         # الجرعة (مثال: "10 مل صباحًا")
+    start_date = db.Column(db.Date, nullable=True)
+    end_date = db.Column(db.Date, nullable=True)                # فارغ = علاج مستمر بلا تاريخ انتهاء محدد
     notes = db.Column(db.String(300))
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 

@@ -118,5 +118,45 @@
     </form>
     {% endif %}
   </div>
+
+  <div class="horse-info-vaccinations">
+    <h4>الأدوية المستمرة</h4>
+    {% if horse.medications %}
+    <table class="vaccinations-table">
+      <thead><tr><th>الاسم</th><th>الجرعة</th><th>من</th><th>إلى</th>{% if can_manage_horse %}<th></th>{% endif %}</tr></thead>
+      <tbody>
+      {% for m in horse.medications %}
+        <tr>
+          <td>{{ m.name }}</td>
+          <td>{{ m.dosage or "—" }}</td>
+          <td>{{ m.start_date.strftime('%Y-%m-%d') if m.start_date else "—" }}</td>
+          <td>{{ m.end_date.strftime('%Y-%m-%d') if m.end_date else "مستمر" }}</td>
+          {% if can_manage_horse %}
+          <td>
+            <form method="POST" action="{{ url_for('admin_medication_delete', medication_id=m.id) }}" style="margin:0;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn-icon-danger" title="حذف">✕</button>
+            </form>
+          </td>
+          {% endif %}
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p style="color:var(--muted); font-size:.85rem;">لا توجد أدوية مستمرة مسجَّلة.</p>
+    {% endif %}
+
+    {% if can_manage_horse %}
+    <form method="POST" action="{{ url_for('admin_medication_new', horse_id=horse.id) }}" class="vaccination-add-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="text" name="name" placeholder="اسم الدواء" required>
+      <input type="text" name="dosage" placeholder="الجرعة">
+      <input type="date" name="start_date">
+      <input type="date" name="end_date" placeholder="تاريخ الانتهاء">
+      <button type="submit" class="btn btn-sm">+ إضافة</button>
+    </form>
+    {% endif %}
+  </div>
   {% endif %}
 </div>

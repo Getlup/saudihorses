@@ -23,7 +23,7 @@ from sqlalchemy import or_
 
 from config import Config
 from models import (db, Stable, User, Horse, DailyLog, DailyTask, Package, Booking, Review,
-                     Achievement, GalleryPhoto, PhoneOtp, Vaccination)
+                     Achievement, GalleryPhoto, PhoneOtp, Vaccination, Medication)
 from pdf_reports import build_daily_report_pdf, build_invoice_pdf
 from sms import send_otp_sms, SmsSendError
 from translations import translate
@@ -841,6 +841,51 @@ def admin_vaccination_delete(vaccination_id):
     db.session.delete(vaccination)
     db.session.commit()
     flash("تم حذف سجل التطعيم", "success")
+    return redirect(url_for("admin_horse_detail", horse_id=horse_id))
+
+
+@app.route("/admin/horse/<int:horse_id>/medications/new", methods=["POST"])
+@login_required(User.ROLE_STABLE_OWNER, User.ROLE_SUPER_ADMIN, User.ROLE_STAFF)
+def admin_medication_new(horse_id):
+    user = current_user()
+    horse = Horse.query.filter_by(id=horse_id, stable_id=user.stable_id).first_or_404()
+
+    name = request.form.get("name", "").strip()
+    if not name:
+        flash("اسم الدواء مطلوب", "error")
+        return redirect(url_for("admin_horse_detail", horse_id=horse.id))
+
+    def parse_date(raw):
+        try:
+            return datetime.strptime(raw, "%Y-%m-%d").date() if raw else None
+        except ValueError:
+            return None
+
+    medication = Medication(
+        horse_id=horse.id,
+        name=name[:100],
+        dosage=request.form.get("dosage", "").strip()[:100] or None,
+        start_date=parse_date(request.form.get("start_date", "")),
+        end_date=parse_date(request.form.get("end_date", "")),
+        notes=request.form.get("notes", "").strip()[:300] or None,
+    )
+    db.session.add(medication)
+    db.session.commit()
+    flash("تمت إضافة الدواء", "success")
+    return redirect(url_for("admin_horse_detail", horse_id=horse.id))
+
+
+@app.route("/admin/medication/<int:medication_id>/delete", methods=["POST"])
+@login_required(User.ROLE_STABLE_OWNER, User.ROLE_SUPER_ADMIN, User.ROLE_STAFF)
+def admin_medication_delete(medication_id):
+    user = current_user()
+    medication = Medication.query.join(Horse).filter(
+        Medication.id == medication_id, Horse.stable_id == user.stable_id
+    ).first_or_404()
+    horse_id = medication.horse_id
+    db.session.delete(medication)
+    db.session.commit()
+    flash("تم حذف الدواء", "success")
     return redirect(url_for("admin_horse_detail", horse_id=horse_id))
 
 
