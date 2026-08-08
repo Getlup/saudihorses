@@ -852,6 +852,36 @@ def test_gallery_rejects_non_image_upload(app, client):
         assert GalleryPhoto.query.count() == 0
 
 
+def test_uploaded_photo_strips_exif_metadata(app, client):
+    """يتحقق من أن save_photo يعيد ترميز الصورة فعليًا ويحذف بيانات EXIF (قد تحتوي إحداثيات GPS)
+    بدل حفظ الملف الخام كما هو."""
+    from PIL import Image as PILImage
+    buf = io.BytesIO()
+    img = PILImage.new("RGB", (60, 60), color="red")
+    exif = img.getexif()
+    exif[0x0110] = "Test Camera Model"  # tag شائع (Model) — يكفي للتحقق من الحذف
+    img.save(buf, format="JPEG", exif=exif)
+    buf.seek(0)
+
+    login(client, "owner@test.com", "password123")
+    r = client.get("/admin/gallery")
+    csrf = get_csrf(r.get_data(as_text=True))
+    r = client.post("/admin/gallery", data={
+        "photo": (buf, "with_exif.jpg"), "caption": "فحص EXIF", "csrf_token": csrf,
+    }, content_type="multipart/form-data", follow_redirects=True)
+    assert "تمت إضافة الصورة" in r.get_data(as_text=True)
+
+    with app.app_context():
+        photo = GalleryPhoto.query.filter_by(caption="فحص EXIF").first()
+        assert photo is not None
+        # المسار المخزَّن نسبي لمجلد static/
+        full_path = os.path.join(app.root_path, "static", photo.photo_path)
+        assert os.path.exists(full_path)
+        reopened = PILImage.open(full_path)
+        assert dict(reopened.getexif()) == {}  # لا توجد أي بيانات EXIF متبقية بعد إعادة الترميز
+        assert full_path.endswith(".jpg")  # الامتداد طابق الصيغة الفعلية المكتشفة (JPEG)
+
+
 def test_gallery_enforces_max_photo_limit(app, client, monkeypatch):
     import app as app_module
     monkeypatch.setattr(app_module, "MAX_GALLERY_PHOTOS", 1)

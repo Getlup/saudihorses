@@ -69,29 +69,58 @@ def allowed_ext(filename):
 
 
 def save_photo(file_storage, subfolder):
-    """يحفظ صورة مرفوعة بعد التحقق الفعلي من أنها صورة صالحة (وليس مجرد امتداد الملف)،
-    مع اسم ملف عشوائي آمن لمنع تخمين المسارات أو تعارض الأسماء."""
+    """يحفظ صورة مرفوعة بأمان عبر إعادة ترميزها الكاملة (وليس فقط التحقق منها وحفظ الملف الخام):
+    - تتحقق من صحة الصورة فعليًا (وليس فقط الامتداد المُرسَل)
+    - تحدد الامتداد الحقيقي من محتوى الصورة نفسه (يمنع تعارض امتداد مزيّف عن المحتوى الفعلي)
+    - تُعيد ترميز الصورة من الصفر (تحذف تلقائيًا أي بيانات EXIF أو بيانات دخيلة/مخفية ملحقة بالملف
+      الأصلي — لا يُمرَّر exif= عند الحفظ فتُحذف بشكل افتراضي، وهي أيضًا حماية ضد ملفات "polyglot"
+      المصمَّمة لتُقرأ كصورة صالحة من جهة وكشيء آخر ضار من جهة أخرى)
+    - تحدد أبعادًا قصوى (تصغير تلقائي) لمنع استنزاف الذاكرة/التخزين بصور ضخمة الأبعاد
+    - اسم ملف عشوائي آمن لمنع تخمين المسارات أو تعارض الأسماء
+    """
     if not file_storage or file_storage.filename == "":
         return None
     if not allowed_ext(file_storage.filename):
         flash("صيغة الصورة غير مدعومة (يُسمح فقط بـ JPG, PNG, WEBP)", "error")
         return None
 
-    ext = file_storage.filename.rsplit(".", 1)[1].lower()
+    FORMAT_TO_EXT = {"JPEG": "jpg", "PNG": "png", "WEBP": "webp"}
+    MAX_DIMENSION = 3000  # بكسل لكل ضلع كحد أقصى — إعادة تحجيم تلقائي بدون تشويه النسبة
+
     try:
-        # تحقق فعلي من محتوى الملف (وليس فقط امتداده) لمنع رفع ملفات ضارة متنكرة كصور
         file_storage.stream.seek(0)
         img = Image.open(file_storage.stream)
-        img.verify()
+        img.verify()  # تحقق بنيوي أولي — يُبطل الكائن، لذا يلزم إعادة فتحه بعده
         file_storage.stream.seek(0)
+        img = Image.open(file_storage.stream)
+        img.load()  # يفشل هنا لو كانت بيانات البكسل نفسها تالفة، وليس فقط الترويسة (header)
+    except Image.DecompressionBombError:
+        flash("أبعاد الصورة كبيرة جدًا وغير مسموحة", "error")
+        return None
     except (UnidentifiedImageError, OSError, ValueError):
         flash("الملف المرفوع ليس صورة صالحة", "error")
         return None
 
+    actual_format = img.format
+    if actual_format not in FORMAT_TO_EXT:
+        flash("صيغة الصورة غير مدعومة (يُسمح فقط بـ JPG, PNG, WEBP)", "error")
+        return None
+    ext = FORMAT_TO_EXT[actual_format]
+
+    # JPEG لا يدعم قناة الشفافية — تحويل ضروري لتفادي فشل الحفظ أو ألوان مشوَّهة
+    if actual_format == "JPEG" and img.mode in ("RGBA", "P", "LA"):
+        img = img.convert("RGB")
+
+    if img.width > MAX_DIMENSION or img.height > MAX_DIMENSION:
+        img.thumbnail((MAX_DIMENSION, MAX_DIMENSION), Image.LANCZOS)
+
     folder = os.path.join(UPLOAD_DIR, subfolder)
     os.makedirs(folder, exist_ok=True)
     fname = f"{uuid.uuid4().hex}.{ext}"
-    file_storage.save(os.path.join(folder, fname))
+    save_kwargs = {"quality": 88, "optimize": True} if actual_format in ("JPEG", "WEBP") else {"optimize": True}
+    # ملاحظة: عدم تمرير exif= هنا مقصود — هذا ما يضمن حذف بيانات EXIF (قد تحتوي إحداثيات GPS
+    # أو معلومات الجهاز) من الصورة المحفوظة نهائيًا، بغض النظر عمّا كان بالملف الأصلي.
+    img.save(os.path.join(folder, fname), format=actual_format, **save_kwargs)
     return f"uploads/{subfolder}/{fname}"
 
 
