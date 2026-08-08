@@ -112,6 +112,15 @@
 /* ---------- إجراءات الشريط (جرس/مستخدم) ---------- */
 .header-actions{ display: flex; align-items: center; gap: 18px; flex: none; }
 
+/* ---------- شارة الساعة والتاريخ ---------- */
+.clock-badge{
+  display: flex; flex-direction: column; align-items: flex-start; line-height: 1.25;
+  border: 1px solid var(--border-soft); border-radius: 8px;
+  padding: 5px 10px; font-size: .72rem;
+}
+.clock-badge .clock-time{ font-weight: 700; color: var(--text-primary); font-size: .82rem; }
+.clock-badge .clock-date{ color: var(--text-secondary); }
+
 /* ---------- مبدّل اللغة (علمان صغيران) ---------- */
 .lang-toggle{ display: flex; align-items: center; gap: 6px; }
 .lang-flag{
@@ -149,6 +158,7 @@
 @media(max-width: 900px){
   .primary-nav{ display: none; }
   .header-actions .user-name{ display: none; }
+  .header-actions .clock-badge{ display: none; }
   .nav-burger{ display: flex; }
   .mobile-nav{
     display: flex; flex-direction: column;

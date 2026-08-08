@@ -17,7 +17,6 @@
     {% endif %}
   </p>
   {% endif %}
-  <p id="live-clock" style="color:var(--muted); font-size:.82rem; margin-top:-12px; margin-bottom:26px;" dir="ltr" data-locale="{{ 'en-US' if lang == 'en' else 'ar-SA' }}"></p>
   <div class="hero-cta">
     <a href="{{ url_for('stable_book', slug=stable.slug) }}" class="btn btn-gold">{{ t('home.book_now') }}</a>
     <a href="#packages" class="btn">{{ t('home.view_packages') }}</a>

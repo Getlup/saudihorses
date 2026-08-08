@@ -13,16 +13,26 @@ document.addEventListener("DOMContentLoaded", () => {
   initLiveClock();
 });
 
-// ---------- ساعة وتاريخ حيّان بالصفحة الرئيسية (Asia/Riyadh) ----------
+// ---------- ساعة وتاريخ حيّان بشريط التنقل (Asia/Riyadh) ----------
 function initLiveClock() {
   const el = document.getElementById("live-clock");
   if (!el) return;
+  const timeEl = el.querySelector(".clock-time");
+  const dateEl = el.querySelector(".clock-date");
+  if (!timeEl || !dateEl) return;
+
   const locale = el.getAttribute("data-locale") || "ar-SA";
-  const fmt = new Intl.DateTimeFormat(locale, {
-    weekday: "long", year: "numeric", month: "long", day: "numeric",
+  const timeFmt = new Intl.DateTimeFormat(locale, {
     hour: "2-digit", minute: "2-digit", timeZone: "Asia/Riyadh"
   });
-  const update = () => { el.textContent = fmt.format(new Date()); };
+  const dateFmt = new Intl.DateTimeFormat(locale, {
+    day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Riyadh"
+  });
+  const update = () => {
+    const now = new Date();
+    timeEl.textContent = timeFmt.format(now);
+    dateEl.textContent = dateFmt.format(now);
+  };
   update();
   setInterval(update, 30000);
 }

@@ -47,6 +47,10 @@
     </nav>
 
     <div class="header-actions">
+      <div class="clock-badge" id="live-clock" dir="ltr" data-locale="{{ 'en-US' if lang == 'en' else 'ar-SA' }}">
+        <span class="clock-time"></span>
+        <span class="clock-date"></span>
+      </div>
       <div class="lang-toggle">
         <a href="{{ url_for('set_language', code='ar') }}" class="lang-flag {{ 'is-active' if lang == 'ar' else '' }}" title="العربية" aria-label="العربية">🇸🇦</a>
         <a href="{{ url_for('set_language', code='en') }}" class="lang-flag {{ 'is-active' if lang == 'en' else '' }}" title="English" aria-label="English">🇺🇸</a>
